@@ -6,20 +6,21 @@ from datetime import date, datetime, timedelta
 import hashlib
 
 # ---------------------------
-# app.py - Version finale complète
-# - Tooltips, validation DOB/ISS/EXP
-# - Field Office selector
-# - DD = ISS_MMDDYYYY - FO_CODE - EXP_YY - SEC (SEC from SHA-256, last 4/8 chars)
-# - Export JSON
+# app.py - Version finale complète (prête à copier)
+# - Affiche les codes des bureaux à côté du nom dans le selectbox
+# - DD = [ISS_MMDDYYYY]-[FO_CODE]-[EXP_YY]-[SEC] (SEC = derniers 4/8 chars de SHA-256)
+# - DOB ≤ today - 16 ans ; ISS < today ; EXP = anniversaire + 5 ans ; EXP > today
+# - Validation complète, infobulles, export JSON
 # ---------------------------
 
-# ---------- Utilitaires ----------
+# ---------- Fonctions utilitaires ----------
 def calc_expiration(dob: date, issue_date: date) -> date:
     """Expiration = anniversaire du titulaire, 5 ans après l'année d'émission."""
     exp_year = issue_date.year + 5
     try:
         return date(exp_year, dob.month, dob.day)
     except ValueError:
+        # Cas 29 février -> 28 février si non bissextile
         return date(exp_year, 2, 28)
 
 def calc_dl(last_name: str, dob: date) -> str:
@@ -63,7 +64,7 @@ def safe_subtract_years(d: date, years: int) -> date:
     except ValueError:
         return date(d.year - years, 2, 28)
 
-# ---------- UI helpers ----------
+# ---------- Tooltips / UI helpers ----------
 TOOLTIPS = {
     "LN": "Nom de famille — ex. Dupont.",
     "FN": "Prénom — ex. Marie.",
@@ -71,7 +72,10 @@ TOOLTIPS = {
     "DOB": "Date de naissance — format YYYY-MM-DD. Doit être ≤ aujourd'hui - 16 ans.",
     "ISS": "Date d'émission — format YYYY-MM-DD. Doit être antérieure à aujourd'hui.",
     "EXP": "Date d'expiration (calculée) — anniversaire + 5 ans ; doit être strictement après aujourd'hui.",
-    "FO": "Code du bureau DMV — ex. 509 (Pasadena)."
+    "FO": "Code du bureau DMV — ex. 509 (Pasadena).",
+    "CLASS": "Classe de permis — ex. C.",
+    "RSTR": "Restrictions — ex. NONE.",
+    "END": "Endorsements — autorisations spéciales."
 }
 
 def label_with_tooltip(key: str, label_text: str) -> str:
@@ -101,7 +105,7 @@ TOOLTIP_CSS = """
 </style>
 """
 
-# ---------- Config UI ----------
+# ---------- Configuration UI ----------
 st.set_page_config(page_title="Calcul DL + DD (final)", layout="centered")
 st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
@@ -113,23 +117,23 @@ min_dob_allowed = safe_subtract_years(today, 120)
 max_dob_allowed = safe_subtract_years(today, 16)
 max_iss_allowed = today - timedelta(days=1)
 
-# ---------- Field Office codes ----------
+# ---------- Field Office codes (nom + code affichés) ----------
 office_codes = {
-    "Pasadena": "509",
-    "Los Angeles (Hope St)": "502",
-    "San Francisco": "503",
-    "San Diego": "501",
-    "Sacramento": "500",
-    "San Jose": "516",
-    "Oakland (Claremont Ave)": "504",
-    "Santa Monica": "548",
-    "Hollywood": "661",
-    "Glendale": "628",
-    "Culver City": "611",
-    "Long Beach": "507"
+    "Pasadena (509)": "509",
+    "Los Angeles (Hope St) (502)": "502",
+    "San Francisco (503)": "503",
+    "San Diego (501)": "501",
+    "Sacramento (500)": "500",
+    "San Jose (516)": "516",
+    "Oakland (Claremont Ave) (504)": "504",
+    "Santa Monica (548)": "548",
+    "Hollywood (661)": "661",
+    "Glendale (628)": "628",
+    "Culver City (611)": "611",
+    "Long Beach (507)": "507"
 }
 
-# Security length choice (4 or 8)
+# Choix longueur SEC (4 ou 8)
 security_length = st.sidebar.selectbox("Longueur séquence de sécurité (SEC)", options=[8, 4], index=0)
 
 # ---------- Formulaire ----------
@@ -149,7 +153,7 @@ with col1:
     iss = st.date_input("", value=date(2015, 9, 30), max_value=max_iss_allowed)
 
     st.markdown(label_with_tooltip("FO", "Code du bureau DMV"), unsafe_allow_html=True)
-    office = st.selectbox("", options=list(office_codes.keys()))
+    office_display = st.selectbox("", options=list(office_codes.keys()))
 
 with col2:
     st.markdown(label_with_tooltip("SEX", "Sexe (SEX)"), unsafe_allow_html=True)
@@ -202,14 +206,14 @@ if st.button("Calculer"):
     if isinstance(dob, date) and isinstance(iss, date) and iss <= dob:
         errors.append("La date d'émission doit être postérieure à la date de naissance.")
 
-    # Calcul EXP
+    # Calcul EXP (anniversaire + 5 ans)
     exp = None
     if isinstance(dob, date) and isinstance(iss, date):
         exp = calc_expiration(dob, iss)
         if exp <= today:
             errors.append(f"La date d'expiration calculée ({exp.isoformat()}) n'est pas valide. Elle doit être strictement après {today.isoformat()}.")
 
-    # Afficher erreurs
+    # Afficher erreurs si présentes
     if errors:
         for e in errors:
             st.error(e)
@@ -217,7 +221,7 @@ if st.button("Calculer"):
 
     # Génération DL et DD
     dl = calc_dl(ln, dob)
-    office_code = office_codes[office]
+    office_code = office_codes[office_display]
     dd = calc_dd(iss, exp, office_code, length=security_length)
 
     # --- Vérification d'unicité (placeholder) ---
@@ -249,18 +253,18 @@ if st.button("Calculer"):
         "CLASS": pclass,
         "RSTR": rstr,
         "END": end,
-        "OFFICE": office,
+        "OFFICE_DISPLAY": office_display,
         "OFFICE_CODE": office_code,
         "SEC_LENGTH": security_length
     }
 
-    # Affichage
+    # ---------- Affichage ----------
     st.subheader("Résultats simulés")
     st.write(f"**DL :** {dl}")
     st.write(f"**DD :** {dd}")
     st.write(f"**EXP :** {exp.isoformat()}  (doit être strictement après {today.isoformat()})")
     st.write(f"**ISS :** {iss.isoformat()}")
-    st.write(f"**Office :** {office} ({office_code})")
+    st.write(f"**Office :** {office_display} — code {office_code}")
     st.write("---")
     st.write(f"**LN :** {ln}")
     st.write(f"**FN :** {fn}")
