@@ -1,7 +1,6 @@
 # driver_licence_americain.py
-# Interface "Générateur DL et DD" complète et autonome (sans export PDF)
-# Paquets requis : streamlit, pandas, pillow (optionnel pour l'aperçu photo), openpyxl (si tu veux XLSX)
-# Exemple d'installation locale : pip install streamlit pandas pillow openpyxl
+# Paquets requis : streamlit, pandas, openpyxl
+# Exemple d'installation locale : pip install streamlit pandas openpyxl
 
 import streamlit as st
 import pandas as pd
@@ -10,7 +9,6 @@ import datetime
 import hashlib
 import random
 from io import BytesIO
-from PIL import Image, ImageOps
 import traceback
 
 st.set_page_config(page_title="Générateur DL et DD", layout="wide")
@@ -60,6 +58,15 @@ def build_dd_from_template(template: str, values: dict) -> str:
 def to_json_bytes(obj) -> bytes:
     return json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
 
+def to_excel_bytes(df: pd.DataFrame) -> bytes:
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Résultats")
+    return buffer.getvalue()
+
+def to_csv_bytes(df: pd.DataFrame) -> bytes:
+    return df.to_csv(index=False).encode("utf-8")
+
 # -----------------------
 # Sidebar : Paramètres avancés
 # -----------------------
@@ -74,47 +81,32 @@ with st.sidebar:
     st.caption("UI épurée : les détails techniques sont inclus dans l’export.")
 
 # -----------------------
-# Main UI : Formulaire
+# Main UI : Formulaire (sans upload photo)
 # -----------------------
 st.title("Générateur DL et DD")
 st.markdown("UI épurée : les détails techniques sont inclus dans l’export. Choisissez le format d’export dans le menu principal.")
 
-col_main, col_photo = st.columns([3, 1])
-
-with col_main:
-    with st.form(key="form_main"):
-        st.subheader("Données personnelles")
-        ln = st.text_input("Nom de famille (LN)", value="Harms")
-        fn = st.text_input("Prénom (FN)", value="Rosa")
-        sex = st.selectbox("Sexe (SEX)", ["M", "F", "Autre"], index=0)
-        dob = st.date_input("Date de naissance (DOB, YYYY-MM-DD)", value=datetime.date(1990, 12, 31))
-        # Taille en pieds/pouces
-        hgt_feet = st.number_input("Taille - pieds", min_value=0, max_value=8, value=5)
-        hgt_inches = st.number_input("Taille - pouces", min_value=0, max_value=11, value=8)
-        wgt = st.text_input("Poids (WGT)", value="175 lb")
-        iss = st.date_input("Date d’émission (ISS, YYYY-MM-DD)", value=datetime.date(2015, 9, 30))
-        hair = st.text_input("Cheveux (HAIR)", value="BRN")
-        eyes = st.text_input("Yeux (EYES)", value="BRO")
-        fo = st.text_input("Bureau (Field Office)", value="Pasadena (509)")
-        class_ = st.text_input("Classe (CLASS)", value="C")
-        rstr = st.text_input("Restrictions (RSTR)", value="NONE")
-        end = st.text_input("Endorsements (END)", value="")
-        st.markdown("---")
-        st.subheader("Export")
-        export_format = st.selectbox("Choisir le format d’export", ["JSON"], index=0)
-        calculate = st.form_submit_button("Calculer")
-
-with col_photo:
-    st.markdown("### Photo (optionnelle)")
-    photo = st.file_uploader("", type=["jpg", "jpeg", "png"])
-    if photo:
-        try:
-            img = Image.open(photo)
-            img = ImageOps.exif_transpose(img)
-            img = ImageOps.fit(img, (300, 300))
-            st.image(img, caption="Aperçu photo", use_column_width=False)
-        except Exception:
-            st.warning("Impossible d'afficher l'image fournie.")
+with st.form(key="form_main"):
+    st.subheader("Données personnelles")
+    ln = st.text_input("Nom de famille (LN)", value="Harms")
+    fn = st.text_input("Prénom (FN)", value="Rosa")
+    sex = st.selectbox("Sexe (SEX)", ["M", "F", "Autre"], index=0)
+    dob = st.date_input("Date de naissance (DOB, YYYY-MM-DD)", value=datetime.date(1990, 12, 31))
+    # Taille en pieds/pouces
+    hgt_feet = st.number_input("Taille - pieds", min_value=0, max_value=8, value=5)
+    hgt_inches = st.number_input("Taille - pouces", min_value=0, max_value=11, value=8)
+    wgt = st.text_input("Poids (WGT)", value="175 lb")
+    iss = st.date_input("Date d’émission (ISS, YYYY-MM-DD)", value=datetime.date(2015, 9, 30))
+    hair = st.text_input("Cheveux (HAIR)", value="BRN")
+    eyes = st.text_input("Yeux (EYES)", value="BRO")
+    fo = st.text_input("Bureau (Field Office)", value="Pasadena (509)")
+    class_ = st.text_input("Classe (CLASS)", value="C")
+    rstr = st.text_input("Restrictions (RSTR)", value="NONE")
+    end = st.text_input("Endorsements (END)", value="")
+    st.markdown("---")
+    st.subheader("Export")
+    export_format = st.selectbox("Choisir le format d’export", ["JSON", "CSV", "XLSX"], index=0)
+    calculate = st.form_submit_button("Calculer")
 
 # Note visible sur l'interface
 st.info("Note : l’export PDF est désactivé car le module 'reportlab' n’est pas installé sur cet environnement. Installez 'reportlab' pour activer l’export PDF.")
@@ -133,12 +125,14 @@ if calculate:
         sec = random_letters(rnd, sec_len)
         seq = random_digits(rnd, 6)  # séquence interne (6 chiffres par défaut)
         # Expiration standard : ISS + 5 ans (exemple)
-        exp_date = iss.replace(year=iss.year + 5)
+        try:
+            exp_date = iss.replace(year=iss.year + 5)
+        except Exception:
+            exp_date = iss
         # Alternative d'expiration (EXP_ALT) : ISS + 8 ans (exemple)
         try:
             exp_alt_date = iss.replace(year=iss.year + 8)
         except Exception:
-            # fallback si date invalide (ex: 29 février)
             exp_alt_date = exp_date
 
         # Construire valeurs pour template
@@ -156,7 +150,7 @@ if calculate:
         dd_generated = build_dd_from_template(template_dd, values)
 
         # Générer numéro DL simulé (ex: combinaison déterministe)
-        dl_number = f"{ln[:2].upper()}{fn[:2].upper()}{batch}{seq}"
+        dl_number = f"{(ln or '')[:2].upper()}{(fn or '')[:2].upper()}{batch}{seq}"
 
         # Construire l'objet de sortie
         hgt = format_height(int(hgt_feet), int(hgt_inches))
@@ -210,13 +204,25 @@ if calculate:
             "DD_GENERATED": result["DD_GENERATED"]
         })
 
-        # Préparer export JSON
-        json_bytes = to_json_bytes(result)
+        # Préparer export selon le format choisi
+        if export_format == "JSON":
+            data_bytes = to_json_bytes(result)
+            mime = "application/json"
+            filename = "dl_dd_generated.json"
+        elif export_format == "CSV":
+            data_bytes = to_csv_bytes(pd.DataFrame([result]))
+            mime = "text/csv"
+            filename = "dl_dd_generated.csv"
+        else:  # XLSX
+            data_bytes = to_excel_bytes(pd.DataFrame([result]))
+            mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            filename = "dl_dd_generated.xlsx"
+
         st.download_button(
             label=f"Télécharger ({export_format})",
-            data=json_bytes,
-            file_name="dl_dd_generated.json",
-            mime="application/json"
+            data=data_bytes,
+            file_name=filename,
+            mime=mime
         )
 
         st.success("Génération terminée — télécharge le fichier si besoin.")
