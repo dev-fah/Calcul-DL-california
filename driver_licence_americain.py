@@ -6,14 +6,12 @@ from datetime import date, datetime
 import hashlib
 
 # ---------------------------
-# Configuration et explications
+# Application complète (app.py)
+# - Version : inclut gestion explicite de la DATE DE NAISSANCE (DOB)
+# - Affiche une infobulle brève au survol pour chaque label (hover)
+# - Calcule DL (simulation), EXP (pour < 70 ans), DD (simulation)
+# - Affiche l'âge calculé et vérifie la condition < 70 ans
 # ---------------------------
-# Ce fichier est une application Streamlit autonome.
-# - Les tooltips sont implémentées en HTML/CSS et affichées au survol (hover).
-# - DL (simulation) : initiale du nom (majuscule) + 7 chiffres déterministes extraits d'un hash SHA1 de la DOB (YYYYMMDD).
-# - EXP (pour < 70 ans) : date d'anniversaire du titulaire, 5 ans après l'année d'émission.
-# - DD (simulation) : MMDDYYYY (ISS) + suffixe 6 hex chars issu d'un MD5 de la date d'émission.
-# Les numéros générés sont des simulations déterministes pour usage académique uniquement.
 
 # ---------------------------
 # Fonctions utilitaires
@@ -64,6 +62,10 @@ def calc_dd(issue_date: date) -> str:
 def to_json_result(result: dict) -> str:
     return json.dumps(result, ensure_ascii=False, indent=2)
 
+def calculate_age(birth_date: date, ref_date: date) -> int:
+    """Calcule l'âge au jour de référence (ref_date)."""
+    return ref_date.year - birth_date.year - ((ref_date.month, ref_date.day) < (birth_date.month, birth_date.day))
+
 # ---------------------------
 # Tooltips (définitions brèves)
 # ---------------------------
@@ -71,10 +73,10 @@ def to_json_result(result: dict) -> str:
 TOOLTIPS = {
     "LN": "Nom de famille — nom de famille du titulaire.",
     "FN": "Prénom — prénom du titulaire.",
-    "DOB": "Date de naissance — format YYYY-MM-DD.",
+    "DOB": "Date de naissance — format YYYY-MM-DD. Sert au calcul de l'âge et influence EXP.",
     "ISS": "Date d'émission — date où le permis a été délivré.",
     "EXP": "Date d'expiration — pour <70 ans : anniversaire + 5 ans.",
-    "DL": "Driver License — initiale du nom + 7 chiffres (simulation).",
+    "DL": "Driver License — initiale du nom + 7 chiffres (simulation académique).",
     "DD": "Document Discriminator — code unique simulé basé sur ISS.",
     "SEX": "Sexe — M ou F (ou X).",
     "HGT": "Taille — ex. 5'-08''.",
@@ -120,7 +122,7 @@ TOOLTIP_CSS = """
 .tooltip-text {
   visibility: hidden;
   width: max-content;
-  max-width: 320px;
+  max-width: 360px;
   background-color: rgba(15,23,42,0.95);
   color: #fff;
   text-align: left;
@@ -152,6 +154,11 @@ TOOLTIP_CSS = """
   border-style: solid;
   border-color: rgba(15,23,42,0.95) transparent transparent transparent;
 }
+.small-note {
+  font-size:12px;
+  color:#475569;
+  margin-top:6px;
+}
 </style>
 """
 
@@ -175,8 +182,10 @@ with col1:
     st.markdown(label_with_tooltip("FN", "Prénom (FN)"), unsafe_allow_html=True)
     fn = st.text_input("", value="Rosa", placeholder="Ex: Rosa")
 
+    # DOB : champ mis en évidence, validation et affichage d'explication
     st.markdown(label_with_tooltip("DOB", "Date de naissance (DOB, YYYY-MM-DD)"), unsafe_allow_html=True)
     dob_str = st.text_input("", value="1990-12-31", placeholder="YYYY-MM-DD")
+    st.markdown('<div class="small-note">La date de naissance est utilisée pour calculer l\'âge et pour générer le DL simulé.</div>', unsafe_allow_html=True)
 
     st.markdown(label_with_tooltip("ISS", "Date d'émission (ISS, YYYY-MM-DD)"), unsafe_allow_html=True)
     iss_str = st.text_input("", value="2015-09-30", placeholder="YYYY-MM-DD")
@@ -212,8 +221,11 @@ if st.button("Calculer"):
         st.error("Format ISS invalide. Utilisez YYYY-MM-DD.")
         st.stop()
 
-    # Calcul âge au moment de l'émission
-    age_at_issue = iss.year - dob.year - ((iss.month, iss.day) < (dob.month, dob.day))
+    # Calcul âge au moment de l'émission et âge actuel
+    age_at_issue = calculate_age(dob, iss)
+    age_now = calculate_age(dob, date.today())
+
+    # Vérification < 70 ans (conforme au périmètre demandé)
     if age_at_issue >= 70:
         st.warning("Attention : ce calcul est conçu pour les conducteurs de moins de 70 ans. Les règles changent pour >= 70 ans.")
 
@@ -230,6 +242,8 @@ if st.button("Calculer"):
         "LN": ln,
         "FN": fn,
         "DOB": dob.isoformat(),
+        "AGE_AT_ISSUE": age_at_issue,
+        "AGE_NOW": age_now,
         "SEX": sex,
         "HGT": hgt,
         "WGT": wgt,
@@ -248,7 +262,8 @@ if st.button("Calculer"):
     st.write("---")
     st.write(f"**LN :** {ln}")
     st.write(f"**FN :** {fn}")
-    st.write(f"**DOB :** {dob.isoformat()}")
+    st.write(f"**DOB :** {dob.isoformat()}  — **Âge maintenant :** {age_now} ans")
+    st.write(f"**Âge au moment de l'émission :** {age_at_issue} ans")
     st.write(f"**SEX :** {sex}")
     st.write(f"**HGT :** {hgt}")
     st.write(f"**WGT :** {wgt}")
@@ -270,6 +285,7 @@ if st.button("Calculer"):
 st.markdown(
     """
     **Notes**  
+    - La **Date de naissance (DOB)** est essentielle : elle sert au calcul de l'âge, à la génération déterministe du DL simulé, et à fixer la date d'expiration (anniversaire + 5 ans pour <70 ans).  
     - Les numéros générés ici sont des **simulations déterministes** pour usage académique uniquement.  
     - Format observé pour les DL californiens : souvent `1 lettre + 7 chiffres`. Ici la lettre = initiale du nom.  
     - Le Document Discriminator (DD) réel est interne au DMV ; nous simulons un code traçable basé sur la date d'émission.
