@@ -1,18 +1,15 @@
 # driver_licence_americain.py
-# Requirements (for reference only, pas besoin d'un fichier séparé si tu ne veux pas):
-# streamlit==1.32.0
-# pandas==2.2.1
-# openpyxl==3.1.2
-# pillow==10.2.0
+# Paquets utilisés (pour info) : streamlit, pandas, openpyxl, pillow
+# Si tu veux tester localement : pip install streamlit pandas openpyxl pillow
 
 import streamlit as st
 import pandas as pd
 from io import BytesIO
-import traceback
 from PIL import Image, ImageOps
-import base64
+import traceback
+import datetime
 
-st.set_page_config(page_title="Calcul DL California", layout="centered")
+st.set_page_config(page_title="Simulateur DL - Interface", layout="centered")
 
 def to_excel_bytes(df: pd.DataFrame) -> bytes:
     buffer = BytesIO()
@@ -20,96 +17,123 @@ def to_excel_bytes(df: pd.DataFrame) -> bytes:
         df.to_excel(writer, index=False, sheet_name="Résultats")
     return buffer.getvalue()
 
-def get_table_download_link_csv(df: pd.DataFrame, filename: str = "resultat.csv"):
-    csv = df.to_csv(index=False).encode("utf-8")
-    return csv
+def to_csv_bytes(df: pd.DataFrame) -> bytes:
+    return df.to_csv(index=False).encode("utf-8")
 
-def show_sample_layout():
-    st.markdown(
-        """
-        **Mode d'emploi rapide**
-        - Remplis le formulaire puis clique sur **Calculer**.
-        - Choisis le format d'export (CSV ou XLSX).
-        - Télécharge le fichier via le bouton qui apparaît.
-        """
-    )
+def sample_deterministic_numbers(name: str) -> dict:
+    """
+    Génère des valeurs simulées déterministes à partir d'une chaîne.
+    Utile pour préremplir certains champs (ex: numéro simulé).
+    """
+    seed = sum(ord(c) for c in (name or ""))
+    return {
+        "DL_NUMBER": f"{(seed % 900000) + 100000}",
+        "ISSUE_ID": f"{(seed % 9000) + 1000}"
+    }
+
+def format_height(feet: int, inches: int) -> str:
+    return f"{feet}'-{inches:02d}''"
 
 def main():
-    st.title("Calcul DL California")
-    st.caption("Formulaire simple pour calculer le statut et exporter les résultats")
+    st.title("Simulateur de permis - Interface de saisie")
+    st.caption("Survolez les labels pour voir une définition brève. Les numéros générés sont des simulations déterministes pour usage académique.")
 
-    # Aide / exemple
-    with st.expander("Aide et exemple"):
-        show_sample_layout()
-        st.write("Exemple de données : Nom, Prénom, Âge, Sexe → Statut (Valide/Mineur)")
+    # Exemple d'en-tête / instructions
+    with st.expander("Aide rapide"):
+        st.markdown(
+            "- Remplis les champs ci‑dessous.\n"
+            "- Les champs marqués * sont optionnels.\n"
+            "- Clique sur **Générer** pour voir le résultat et télécharger en CSV/XLSX."
+        )
 
-    # Formulaire principal
-    with st.form(key="form_calcul"):
-        col1, col2 = st.columns(2)
+    # Colonne principale du formulaire
+    with st.form(key="form_dl"):
+        col1, col2 = st.columns([2, 1])
+
         with col1:
-            nom = st.text_input("Nom", value="")
-            prenom = st.text_input("Prénom", value="")
+            ln = st.text_input("Nom de famille (LN)", value="Harms", help="Last Name - Nom de famille")
+            fn = st.text_input("Prénom (FN)", value="Rosa", help="First Name - Prénom")
+            sex = st.selectbox("Sexe (SEX)", ["M", "F", "Autre"], index=0, help="Sexe tel qu'indiqué")
+            dob = st.date_input("Date de naissance (DOB, YYYY-MM-DD)", value=datetime.date(1990, 12, 31), help="Format YYYY-MM-DD")
+            wgt = st.text_input("Poids (WGT)", value="175 lb", help="Poids en livres (ex: 175 lb)")
+            hgt_feet = st.number_input("Taille - pieds", min_value=0, max_value=8, value=5, help="Pieds pour la taille")
+            hgt_inches = st.number_input("Taille - pouces", min_value=0, max_value=11, value=8, help="Pouces pour la taille")
+            iss = st.date_input("Date d'émission (ISS, YYYY-MM-DD)", value=datetime.date(2015, 9, 30), help="Date d'émission du permis")
+            class_ = st.text_input("Classe (CLASS)", value="C", help="Classe du permis")
+            rstr = st.text_input("Restrictions (RSTR)", value="NONE", help="Restrictions éventuelles")
+            notes = st.text_area("Notes (optionnel)", value="", help="Commentaires ou remarques (optionnel)")
+
         with col2:
-            age = st.number_input("Âge", min_value=0, max_value=120, step=1, value=18)
-            sexe = st.selectbox("Sexe", ["M", "F", "Autre"])
+            st.markdown("### Photo (optionnelle)")
+            photo = st.file_uploader("Téléverser une photo (JPG/PNG)", type=["jpg", "jpeg", "png"])
+            if photo is not None:
+                try:
+                    img = Image.open(photo)
+                    img = ImageOps.exif_transpose(img)
+                    img = ImageOps.fit(img, (300, 300))
+                    st.image(img, caption="Aperçu de la photo", use_column_width=False)
+                except Exception:
+                    st.warning("Impossible d'afficher l'image fournie.")
 
-        # Optionnel : upload d'une photo (utilise pillow)
-        photo = st.file_uploader("Photo (optionnelle, JPG/PNG)", type=["jpg", "jpeg", "png"])
-        submit = st.form_submit_button("Calculer")
+            st.markdown("---")
+            st.markdown("### Génération simulée")
+            generated = sample_deterministic_numbers((ln + fn).strip())
+            st.text_input("Numéro simulé (DL_NUMBER)", value=generated["DL_NUMBER"], key="dlnum", disabled=True)
+            st.text_input("ID émission simulée (ISSUE_ID)", value=generated["ISSUE_ID"], key="issid", disabled=True)
 
-    # Formats disponibles
+        submit = st.form_submit_button("Générer")
+
+    # Choix du format d'export (après le formulaire)
     format_export = st.selectbox("Choisir le format d’export", ["CSV", "XLSX"])
 
     if submit:
         try:
-            statut = "Valide" if age >= 18 else "Mineur"
+            # Construire DataFrame résultat
+            hgt = format_height(int(hgt_feet), int(hgt_inches))
             df = pd.DataFrame({
-                "Nom": [nom or ""],
-                "Prénom": [prenom or ""],
-                "Âge": [age],
-                "Sexe": [sexe],
-                "Statut": [statut]
+                "LN": [ln or ""],
+                "FN": [fn or ""],
+                "SEX": [sex],
+                "HGT": [hgt],
+                "DOB": [dob.isoformat()],
+                "WGT": [wgt],
+                "ISS": [iss.isoformat()],
+                "CLASS": [class_],
+                "RSTR": [rstr],
+                "DL_NUMBER": [generated["DL_NUMBER"]],
+                "ISSUE_ID": [generated["ISSUE_ID"]],
+                "NOTES": [notes]
             })
 
-            st.subheader("Résultat")
+            st.subheader("Aperçu des données générées")
             st.dataframe(df)
 
-            # Afficher la photo si fournie (prévisualisation simple)
-            if photo is not None:
-                try:
-                    image = Image.open(photo)
-                    # Petite transformation pour l'affichage (carré, bord)
-                    image = ImageOps.exif_transpose(image)
-                    image = ImageOps.fit(image, (240, 240))
-                    st.image(image, caption="Photo fournie", use_column_width=False)
-                except Exception:
-                    st.warning("Impossible d'afficher l'image fournie.")
-
-            # Boutons de téléchargement
+            # Téléchargements
             if format_export == "CSV":
-                csv_bytes = get_table_download_link_csv(df)
+                csv_bytes = to_csv_bytes(df)
                 st.download_button(
                     label="Télécharger (CSV)",
                     data=csv_bytes,
-                    file_name="resultat.csv",
+                    file_name="dl_resultat.csv",
                     mime="text/csv"
                 )
-
-            elif format_export == "XLSX":
+            else:
                 xlsx_bytes = to_excel_bytes(df)
                 st.download_button(
                     label="Télécharger (XLSX)",
                     data=xlsx_bytes,
-                    file_name="resultat.xlsx",
+                    file_name="dl_resultat.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
-            # Afficher un petit résumé
-            st.success(f"Calcul effectué — statut : **{statut}**")
-
+            st.success("Génération terminée — télécharge le fichier si besoin.")
         except Exception:
-            st.error("Une erreur est survenue lors de l'exécution.")
+            st.error("Une erreur est survenue lors de la génération.")
             st.text(traceback.format_exc())
+
+    # Footer / informations
+    st.markdown("---")
+    st.caption("Interface de démonstration — données simulées pour usage académique uniquement.")
 
 if __name__ == "__main__":
     main()
