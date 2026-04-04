@@ -6,6 +6,15 @@ from datetime import date, datetime, timedelta
 import hashlib
 
 # ---------------------------
+# app.py - Version finale complète
+# - DOB ≤ aujourd'hui - 16 ans (âge ≥ 16)
+# - ISS < aujourd'hui (strictement antérieure)
+# - EXP = anniversaire + 5 ans après l'année d'émission
+# - EXP peut être dans l'année courante mais doit être strictement > aujourd'hui
+# - Tous les champs obligatoires sont vérifiés
+# ---------------------------
+
+# ---------------------------
 # Fonctions utilitaires
 # ---------------------------
 
@@ -15,6 +24,7 @@ def calc_expiration(dob: date, issue_date: date) -> date:
     try:
         return date(exp_year, dob.month, dob.day)
     except ValueError:
+        # Cas 29 février -> 28 février si non bissextile
         return date(exp_year, 2, 28)
 
 def calc_dl(last_name: str, dob: date) -> str:
@@ -90,7 +100,7 @@ TOOLTIP_CSS = """
 # Interface
 # ---------------------------
 
-st.set_page_config(page_title="Calcul DL - Contraintes finales", layout="centered")
+st.set_page_config(page_title="Calcul DL - Version finale", layout="centered")
 st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
 st.title("Calcul DL California — contraintes de date")
@@ -98,8 +108,8 @@ st.caption("DOB ≤ aujourd'hui - 16 ans ; ISS < aujourd'hui ; EXP > aujourd'hui
 
 today = date.today()
 min_dob_allowed = safe_subtract_years(today, 120)
-max_dob_allowed = safe_subtract_years(today, 16)
-max_iss_allowed = today - timedelta(days=1)
+max_dob_allowed = safe_subtract_years(today, 16)   # DOB ≤ today - 16 years
+max_iss_allowed = today - timedelta(days=1)        # ISS < today (strictement antérieure)
 
 col1, col2 = st.columns(2)
 
@@ -112,35 +122,45 @@ with col1:
 
 with col2:
     st.markdown(label_with_tooltip("EXP", "Date d'expiration (calculée)"), unsafe_allow_html=True)
+    st.markdown("La date d'expiration est calculée automatiquement après validation.", unsafe_allow_html=True)
 
 # Bouton calculer
 if st.button("Calculer"):
     errors = []
 
+    # Vérifications de base
     if not isinstance(dob, date):
         errors.append("Date de naissance invalide.")
     if not isinstance(iss, date):
         errors.append("Date d'émission invalide.")
 
-    # Vérifications
-    if dob > max_dob_allowed:
+    # DOB doit être ≤ today - 16 ans
+    if isinstance(dob, date) and dob > max_dob_allowed:
         errors.append(f"La date de naissance doit être au plus le {max_dob_allowed.isoformat()} (âge ≥ 16 ans).")
-    if iss >= today:
+
+    # ISS doit être strictement antérieure à aujourd'hui
+    if isinstance(iss, date) and iss >= today:
         errors.append("La date d'émission doit être antérieure à aujourd'hui.")
-    if iss <= dob:
+
+    # ISS doit être postérieure à DOB
+    if isinstance(dob, date) and isinstance(iss, date) and iss <= dob:
         errors.append("La date d'émission doit être postérieure à la date de naissance.")
 
-    exp = calc_expiration(dob, iss)
-    # Règle finale : EXP doit être strictement > today
-    if exp <= today:
-        errors.append(f"La date d'expiration ({exp.isoformat()}) n'est pas valide. Elle doit être strictement après {today.isoformat()}.")
+    # Calcul EXP
+    if isinstance(dob, date) and isinstance(iss, date):
+        exp = calc_expiration(dob, iss)
+        # Règle finale : EXP doit être strictement > today
+        if exp <= today:
+            errors.append(f"La date d'expiration ({exp.isoformat()}) n'est pas valide. Elle doit être strictement après {today.isoformat()}.")
+    else:
+        exp = None
 
     if errors:
         for e in errors:
             st.error(e)
         st.stop()
 
-    # Calculs
+    # Calculs finaux
     dl = calc_dl("Harms", dob)
     dd = calc_dd(iss)
     age_at_issue = calculate_age(dob, iss)
@@ -158,10 +178,11 @@ if st.button("Calculer"):
 
     st.subheader("Résultats simulés")
     st.write(f"**DL :** {dl}")
-    st.write(f"**EXP :** {exp.isoformat()} (doit être > {today.isoformat()})")
+    st.write(f"**EXP :** {exp.isoformat()}  (doit être strictement après {today.isoformat()})")
     st.write(f"**ISS :** {iss.isoformat()}")
     st.write(f"**DD :** {dd}")
-    st.write(f"**DOB :** {dob.isoformat()} — Âge actuel : {age_now} ans ; Âge à l'émission : {age_at_issue} ans")
+    st.write("---")
+    st.write(f"**DOB :** {dob.isoformat()}  — Âge actuel : {age_now} ans ; Âge à l'émission : {age_at_issue} ans")
 
     st.download_button(
         label="Exporter résultats (JSON)",
