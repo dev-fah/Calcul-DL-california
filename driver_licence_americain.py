@@ -1,5 +1,5 @@
 # driver_licence_americain.py
-# UI optimisée : champs et zone résultat compacts pour meilleure UX
+# UI/UX améliorée pour l'aperçu (preview) — prêt à coller
 # Dépendances (pour info) : streamlit, pandas, openpyxl
 # Installer localement : pip install streamlit pandas openpyxl
 
@@ -12,10 +12,10 @@ import random
 from io import BytesIO
 import traceback
 
-st.set_page_config(page_title="Générateur DL et DD", layout="wide")
+st.set_page_config(page_title="Générateur DL et DD — Aperçu optimisé", layout="wide")
 
 # -----------------------
-# CSS pour UI/UX compacte
+# Styles CSS pour une preview plus lisible et compacte
 # -----------------------
 st.markdown(
     """
@@ -57,15 +57,21 @@ st.markdown(
         font-size: 13px;
     }
 
-    /* JSON box smaller and scrollable */
-    .stJson {
-        max-height: 220px;
-        overflow: auto;
-        font-size: 13px;
+    /* Card-like preview boxes */
+    .preview-card {
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: #f8fafc;
+        box-shadow: 0 1px 2px rgba(16,24,40,0.04);
+        margin-bottom: 8px;
     }
 
-    /* Sidebar width */
-    .css-1d391kg { max-width: 300px; } /* best-effort selector */
+    /* Key-value pair style */
+    .kv-label { color: #6b7280; font-size:13px; }
+    .kv-value { font-weight:600; font-size:15px; }
+
+    /* Sidebar width best-effort */
+    .css-1d391kg { max-width: 300px; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -116,10 +122,10 @@ with st.sidebar:
     st.caption("UI épurée : détails techniques inclus dans l'export.")
 
 # -----------------------
-# Formulaire principal (compact, deux colonnes)
+# Formulaire principal (compact)
 # -----------------------
 st.title("Générateur DL et DD")
-st.markdown("Champs et zone résultat optimisés pour une lecture rapide.")
+st.markdown("Champs et aperçu optimisés pour une lecture claire et rapide.")
 
 with st.form(key="form_main"):
     left, right = st.columns([2, 1], gap="small")
@@ -175,7 +181,7 @@ with st.form(key="form_main"):
 st.info("Note : l’export PDF est désactivé dans cet environnement.")
 
 # -----------------------
-# Traitement et affichage résultat compact
+# Traitement et Aperçu UI/UX amélioré
 # -----------------------
 if calculate:
     try:
@@ -221,8 +227,25 @@ if calculate:
             "GENERATED_AT": datetime.datetime.utcnow().isoformat() + "Z"
         }
 
-        # Résumé compact : tableau avec colonnes essentielles
+        # ---------- Aperçu UI/UX ----------
         st.subheader("Aperçu")
+        # Card row with key values for quick scan
+        c1, c2, c3, c4 = st.columns([1.2, 1, 1, 1])
+        with c1:
+            st.markdown('<div class="preview-card"><div class="kv-label">Nom</div><div class="kv-value">{}</div></div>'.format(result["LN"]), unsafe_allow_html=True)
+            st.markdown('<div class="preview-card"><div class="kv-label">Prénom</div><div class="kv-value">{}</div></div>'.format(result["FN"]), unsafe_allow_html=True)
+        with c2:
+            st.markdown('<div class="preview-card"><div class="kv-label">Sexe</div><div class="kv-value">{}</div></div>'.format(result["SEX"]), unsafe_allow_html=True)
+            st.markdown('<div class="preview-card"><div class="kv-label">Taille</div><div class="kv-value">{}</div></div>'.format(result["HGT"]), unsafe_allow_html=True)
+        with c3:
+            st.markdown('<div class="preview-card"><div class="kv-label">Date de naissance</div><div class="kv-value">{}</div></div>'.format(result["DOB"]), unsafe_allow_html=True)
+            st.markdown('<div class="preview-card"><div class="kv-label">Poids</div><div class="kv-value">{}</div></div>'.format(result["WGT"]), unsafe_allow_html=True)
+        with c4:
+            st.markdown('<div class="preview-card"><div class="kv-label">Issu / Exp</div><div class="kv-value">{}</div><div style="font-size:12px;color:#6b7280">{}</div></div>'.format(result["ISS"], result["EXP"]), unsafe_allow_html=True)
+            st.markdown('<div class="preview-card"><div class="kv-label">DL Number</div><div class="kv-value">{}</div></div>'.format(result["DL_NUMBER"]), unsafe_allow_html=True)
+
+        # Compact table with essential columns
+        st.markdown("**Tableau récapitulatif**")
         df = pd.DataFrame([{
             "LN": result["LN"],
             "FN": result["FN"],
@@ -236,18 +259,18 @@ if calculate:
             "RSTR": result["RSTR"],
             "DL_NUMBER": result["DL_NUMBER"]
         }])
-        st.dataframe(df, use_container_width=True, height=180)
+        st.dataframe(df, use_container_width=True, height=160)
 
-        # Détails techniques dans un expander compact (meilleure UX)
+        # Détails techniques dans un expander (non intrusif)
         with st.expander("Détails techniques (BATCH / SEC / SEQ)", expanded=False):
             st.json({
                 "BATCH": result["BATCH"],
                 "SEC": result["SEC"],
                 "SEQ": result["SEQ"],
                 "GENERATED_AT": result["GENERATED_AT"]
-            }, expanded=False)
+            })
 
-        # Export compact : bouton unique, nom et mime adaptés
+        # Export
         if export_format == "JSON":
             data_bytes = to_json_bytes(result)
             mime = "application/json"
