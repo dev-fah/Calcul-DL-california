@@ -1,6 +1,6 @@
 # driver_licence_americain.py
-# UI/UX : aperçu en cartes, pas de tableau récapitulatif
-# Dépendances (pour info) : streamlit, pandas, openpyxl (si export XLSX)
+# UI/UX : boutons alignés et aperçu en cartes (sans tableau récapitulatif)
+# Dépendances (pour info) : streamlit, pandas, openpyxl
 # pip install streamlit pandas openpyxl
 
 import streamlit as st
@@ -11,22 +11,54 @@ import random
 import json
 from io import BytesIO
 
-st.set_page_config(page_title="Générateur DL — Aperçu UI/UX", layout="wide")
+st.set_page_config(page_title="Générateur DL — UI/UX boutons alignés", layout="wide")
 
 # -------------------------
-# CSS pour UI moderne & compact
+# CSS pour UI moderne & alignement des boutons
 # -------------------------
 st.markdown("""
 <style>
 .main .block-container { max-width: 980px; padding-top: 0.8rem; padding-bottom: 0.8rem; }
 body { background: linear-gradient(180deg,#f7fbff 0%, #ffffff 100%); }
+
+/* Card style */
 .card { background:#fff; border-radius:12px; padding:12px; box-shadow:0 6px 18px rgba(15,23,42,0.06); margin-bottom:10px; }
 .kv-label { color:#6b7280; font-size:13px; margin-bottom:4px; }
 .kv-value { font-weight:700; font-size:16px; color:#0f172a; }
+
+/* Inputs compact */
 .stTextInput>div>div>input, .stNumberInput>div>input, .stSelectbox>div>div { padding:8px 10px; height:40px; font-size:14px; }
-.stButton>button { background: linear-gradient(90deg,#2563eb,#7c3aed); color:white; border-radius:10px; padding:8px 16px; font-weight:600; box-shadow:0 6px 14px rgba(37,99,235,0.12); }
-.stDataFrame table { font-size:13px; } /* safe if used elsewhere */
-.stExpander { font-size:13px; }
+
+/* Primary button style */
+.stButton>button {
+    background: linear-gradient(90deg,#2563eb,#7c3aed);
+    color:white;
+    border-radius:10px;
+    padding:8px 16px;
+    font-weight:600;
+    box-shadow:0 6px 14px rgba(37,99,235,0.12);
+}
+
+/* Download button (same visual weight) */
+.stDownloadButton>button {
+    background: linear-gradient(90deg,#06b6d4,#0ea5e9);
+    color:white;
+    border-radius:10px;
+    padding:8px 16px;
+    font-weight:600;
+    box-shadow:0 6px 14px rgba(6,182,212,0.12);
+}
+
+/* Alignement horizontal des boutons dans un container */
+.button-row {
+    display:flex;
+    gap:12px;
+    justify-content:flex-end;
+    align-items:center;
+}
+
+/* Small helpers */
+.stDataFrame table { font-size:13px; }
 .css-1d391kg { max-width: 300px; } /* sidebar best-effort */
 </style>
 """, unsafe_allow_html=True)
@@ -76,7 +108,7 @@ with st.sidebar:
 # Formulaire principal
 # -------------------------
 st.title("Générateur DL et DD")
-st.markdown("Interface optimisée — aperçu visuel en cartes, export disponible.")
+st.markdown("Interface optimisée — boutons alignés pour une meilleure UX, aperçu en cartes.")
 
 with st.form(key="form_main"):
     left, right = st.columns([2.2, 1], gap="small")
@@ -126,12 +158,16 @@ with st.form(key="form_main"):
         st.metric(label="BATCH len", value=batch_len)
         st.markdown("---")
         export_format = st.selectbox("Format d'export", ["JSON", "CSV", "XLSX"])
-        calculate = st.form_submit_button("Calculer")
+
+        # Aligner le bouton "Calculer" au centre de la colonne Actions
+        b1, b2, b3 = st.columns([0.2, 1, 0.2])
+        with b2:
+            calculate = st.form_submit_button("Calculer")
 
 st.info("Note : le tableau récapitulatif est désactivé — l'aperçu est présenté en cartes.")
 
 # -------------------------
-# Traitement et Aperçu (cartes seulement)
+# Traitement et Aperçu (cartes seulement) avec boutons alignés
 # -------------------------
 if calculate:
     try:
@@ -183,15 +219,22 @@ if calculate:
         with st.expander("Détails techniques (BATCH / SEC / SEQ)", expanded=False):
             st.json({"BATCH": result["BATCH"], "SEC": result["SEC"], "SEQ": result["SEQ"], "GENERATED_AT": result["GENERATED_AT"]})
 
-        # ---------- Export ----------
-        if export_format == "JSON":
-            data_bytes = to_json_bytes(result); mime = "application/json"; fname = "dl_dd_generated.json"
-        elif export_format == "CSV":
-            data_bytes = to_csv_bytes(pd.DataFrame([result])); mime = "text/csv"; fname = "dl_dd_generated.csv"
-        else:
-            data_bytes = to_excel_bytes(pd.DataFrame([result])); mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; fname = "dl_dd_generated.xlsx"
+        # ---------- Alignement du bouton de téléchargement et message de succès ----------
+        # On crée une rangée de boutons alignée à droite : d'abord un espace large, puis le bouton
+        btn_left, btn_right = st.columns([3, 1])
+        with btn_left:
+            st.write("")  # espace pour pousser le bouton à droite
+        with btn_right:
+            if export_format == "JSON":
+                data_bytes = to_json_bytes(result); mime = "application/json"; fname = "dl_dd_generated.json"
+            elif export_format == "CSV":
+                data_bytes = to_csv_bytes(pd.DataFrame([result])); mime = "text/csv"; fname = "dl_dd_generated.csv"
+            else:
+                data_bytes = to_excel_bytes(pd.DataFrame([result])); mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; fname = "dl_dd_generated.xlsx"
 
-        st.download_button(label="⬇️ Télécharger", data=data_bytes, file_name=fname, mime=mime)
+            st.download_button(label="⬇️ Télécharger", data=data_bytes, file_name=fname, mime=mime)
+
+        # Message de succès centré sous la rangée de boutons
         st.success("Génération terminée — télécharge le fichier si besoin.")
 
     except Exception as e:
