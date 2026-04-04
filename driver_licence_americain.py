@@ -1,81 +1,64 @@
 # driver_licence_americain.py
-# Requirements: see requirements.txt
+# Requirements (for reference only, pas besoin d'un fichier séparé si tu ne veux pas):
+# streamlit==1.32.0
+# pandas==2.2.1
+# openpyxl==3.1.2
+# pillow==10.2.0
 
 import streamlit as st
 import pandas as pd
 from io import BytesIO
 import traceback
-
-# Essayer d'importer fpdf; si absent, on gère proprement
-try:
-    from fpdf import FPDF
-    PDF_AVAILABLE = True
-except Exception:
-    FPDF = None
-    PDF_AVAILABLE = False
+from PIL import Image, ImageOps
+import base64
 
 st.set_page_config(page_title="Calcul DL California", layout="centered")
 
-def export_pdf_bytes(dataframe, title="Résultat du calcul DL"):
-    """
-    Génère un PDF en bytes si fpdf est disponible.
-    Lève une exception si fpdf n'est pas installé.
-    """
-    if not PDF_AVAILABLE:
-        raise RuntimeError("fpdf non disponible. Installez fpdf2 dans requirements.txt")
+def to_excel_bytes(df: pd.DataFrame) -> bytes:
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Résultats")
+    return buffer.getvalue()
 
-    pdf = FPDF()
-    pdf.add_page()
-    # Choix de police avec fallback
-    try:
-        pdf.set_font("Arial", size=12)
-    except Exception:
-        pdf.set_font("Helvetica", size=12)
+def get_table_download_link_csv(df: pd.DataFrame, filename: str = "resultat.csv"):
+    csv = df.to_csv(index=False).encode("utf-8")
+    return csv
 
-    pdf.cell(0, 10, title, ln=True, align="C")
-    pdf.ln(6)
-
-    ncols = max(1, len(dataframe.columns))
-    page_width = 190
-    col_width = max(30, int(page_width / ncols))
-
-    for col in dataframe.columns:
-        pdf.cell(col_width, 8, str(col)[:30], border=1, align="C")
-    pdf.ln()
-
-    for _, row in dataframe.iterrows():
-        for item in row:
-            text = str(item)
-            if len(text) > 40:
-                text = text[:37] + "..."
-            pdf.cell(col_width, 8, text, border=1)
-        pdf.ln()
-
-    pdf_out = pdf.output(dest="S")
-    if isinstance(pdf_out, bytes):
-        return pdf_out
-    return pdf_out.encode("latin-1", errors="replace")
+def show_sample_layout():
+    st.markdown(
+        """
+        **Mode d'emploi rapide**
+        - Remplis le formulaire puis clique sur **Calculer**.
+        - Choisis le format d'export (CSV ou XLSX).
+        - Télécharge le fichier via le bouton qui apparaît.
+        """
+    )
 
 def main():
     st.title("Calcul DL California")
+    st.caption("Formulaire simple pour calculer le statut et exporter les résultats")
 
-    if not PDF_AVAILABLE:
-        st.warning("Export PDF désactivé — la dépendance fpdf2 n'est pas installée. "
-                   "Ajoute 'fpdf2==2.7.8' dans requirements.txt et redeploy si tu veux activer le PDF.")
+    # Aide / exemple
+    with st.expander("Aide et exemple"):
+        show_sample_layout()
+        st.write("Exemple de données : Nom, Prénom, Âge, Sexe → Statut (Valide/Mineur)")
 
+    # Formulaire principal
     with st.form(key="form_calcul"):
-        nom = st.text_input("Nom", value="")
-        prenom = st.text_input("Prénom", value="")
-        age = st.number_input("Âge", min_value=0, max_value=120, step=1, value=18)
-        sexe = st.selectbox("Sexe", ["M", "F", "Autre"])
+        col1, col2 = st.columns(2)
+        with col1:
+            nom = st.text_input("Nom", value="")
+            prenom = st.text_input("Prénom", value="")
+        with col2:
+            age = st.number_input("Âge", min_value=0, max_value=120, step=1, value=18)
+            sexe = st.selectbox("Sexe", ["M", "F", "Autre"])
+
+        # Optionnel : upload d'une photo (utilise pillow)
+        photo = st.file_uploader("Photo (optionnelle, JPG/PNG)", type=["jpg", "jpeg", "png"])
         submit = st.form_submit_button("Calculer")
 
-    # Construire la liste des formats disponibles dynamiquement
-    formats = ["CSV", "XLSX"]
-    if PDF_AVAILABLE:
-        formats.append("PDF")
-
-    format_export = st.selectbox("Choisir le format d’export", formats)
+    # Formats disponibles
+    format_export = st.selectbox("Choisir le format d’export", ["CSV", "XLSX"])
 
     if submit:
         try:
@@ -91,25 +74,38 @@ def main():
             st.subheader("Résultat")
             st.dataframe(df)
 
+            # Afficher la photo si fournie (prévisualisation simple)
+            if photo is not None:
+                try:
+                    image = Image.open(photo)
+                    # Petite transformation pour l'affichage (carré, bord)
+                    image = ImageOps.exif_transpose(image)
+                    image = ImageOps.fit(image, (240, 240))
+                    st.image(image, caption="Photo fournie", use_column_width=False)
+                except Exception:
+                    st.warning("Impossible d'afficher l'image fournie.")
+
+            # Boutons de téléchargement
             if format_export == "CSV":
-                csv_bytes = df.to_csv(index=False).encode("utf-8")
-                st.download_button("Télécharger (CSV)", csv_bytes, "resultat.csv", "text/csv")
+                csv_bytes = get_table_download_link_csv(df)
+                st.download_button(
+                    label="Télécharger (CSV)",
+                    data=csv_bytes,
+                    file_name="resultat.csv",
+                    mime="text/csv"
+                )
 
             elif format_export == "XLSX":
-                xlsx_buffer = BytesIO()
-                with pd.ExcelWriter(xlsx_buffer, engine="openpyxl") as writer:
-                    df.to_excel(writer, index=False, sheet_name="Résultats")
-                st.download_button("Télécharger (XLSX)", xlsx_buffer.getvalue(),
-                                   "resultat.xlsx",
-                                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                xlsx_bytes = to_excel_bytes(df)
+                st.download_button(
+                    label="Télécharger (XLSX)",
+                    data=xlsx_bytes,
+                    file_name="resultat.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
-            elif format_export == "PDF":
-                # Sécurité: vérifier encore la disponibilité
-                if not PDF_AVAILABLE:
-                    st.error("PDF non disponible. Installez fpdf2 et redeploy.")
-                else:
-                    pdf_bytes = export_pdf_bytes(df, title="Résultat du calcul DL - California")
-                    st.download_button("Télécharger (PDF)", pdf_bytes, "resultat.pdf", "application/pdf")
+            # Afficher un petit résumé
+            st.success(f"Calcul effectué — statut : **{statut}**")
 
         except Exception:
             st.error("Une erreur est survenue lors de l'exécution.")
