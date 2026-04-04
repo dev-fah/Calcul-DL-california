@@ -1,24 +1,30 @@
+# app.py - Version finale prête à copier
+# - Génération DD au format configurable (ex. "09/30/201560221/21FD/20")
+# - Interface épurée : cache les détails techniques dans l'UI, mais les inclut dans l'export JSON
+# - Menu déroulant d'export : JSON, TXT, CSV, XLSX, PNG, PDF, PSD (archive), WEBHP (archive)
+# - Séquence de sécurité basée sur SHA-256 (extraction configurable)
+# - Validation DOB / ISS / EXP conforme à tes règles
+#
+# Dépendances : streamlit, pandas, openpyxl, pillow, reportlab, io, zipfile
+# Installer si nécessaire : pip install streamlit pandas openpyxl pillow reportlab
+
 import streamlit as st
 import html
 import re
 import json
 from datetime import date, datetime, timedelta
 import hashlib
-import random
-import string
+import io
+import pandas as pd
+from PIL import Image, ImageDraw, ImageFont
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+import zipfile
 
 # ---------------------------
-# app.py - Version finale complète
-# - Génération DD selon format configurable inspiré de l'exemple :
-#   Exemple cible : "09/30/201560221/21FD/20"
-# - Template par défaut utilisé : "{ISS_MM/DD/YYYY}{FO}{BATCH}/{EXP_YY}{SEC}/{EXP_YY}"
-# - SEC générée à partir d'un SHA-256 (extraction configurable)
-# - BATCH dérivé du hash (séquence numérique courte) pour simuler le numéro d'impression/lot
-# - Affiche composants DD séparément et la chaîne DD finale
-# - Validation DOB/ISS/EXP inchangée
+# Fonctions utilitaires
 # ---------------------------
 
-# ---------- Fonctions utilitaires ----------
 def calc_expiration(dob: date, issue_date: date) -> date:
     """Expiration = anniversaire du titulaire, 5 ans après l'année d'émission."""
     exp_year = issue_date.year + 5
@@ -49,7 +55,6 @@ def derive_batch_from_hash(hash_val: str, length: int = 5) -> str:
     """Extrait une séquence numérique (batch) depuis le hash en prenant les chiffres disponibles."""
     digits = ''.join([c for c in hash_val if c.isdigit()])
     if len(digits) < length:
-        # fallback: take hex chars and convert to digits
         extra = ''.join([str(ord(c) % 10) for c in hash_val[:length]])
         digits += extra
     return digits[:length]
@@ -58,7 +63,6 @@ def derive_alpha_from_hash(hash_val: str, length: int = 2) -> str:
     """Extrait une séquence alphabétique depuis le hash (A-Z)."""
     letters = ''.join([c for c in hash_val if c.isalpha()])
     if len(letters) < length:
-        # fallback: map hex chars to letters
         mapped = []
         for ch in hash_val:
             if len(mapped) >= length:
@@ -67,73 +71,69 @@ def derive_alpha_from_hash(hash_val: str, length: int = 2) -> str:
         letters += ''.join(mapped)
     return letters[:length]
 
-def calc_dd_components(issue_date: date, exp_date: date, office_code: str, sec_length: int = 2, batch_length: int = 5) -> dict:
+def calc_dd_components(issue_date: date, exp_date: date, office_code: str,
+                       sec_alpha_length: int = 2, batch_length: int = 5) -> dict:
     """
-    Retourne les composants du DD selon le template utilisé.
-    Template par défaut (exemple cible) : "{ISS_MM/DD/YYYY}{FO}{BATCH}/{EXP_YY}{SEC}/{EXP_YY}"
-    - ISS_MM/DD/YYYY : date d'émission formatée avec slash
-    - FO : code du bureau (ex: 509)
-    - BATCH : séquence numérique dérivée du hash (ex: 60221)
-    - EXP_YY : 2 derniers chiffres de l'année d'expiration (ex: 21)
-    - SEC : séquence alphanumérique de sécurité (ex: FD) extraite du SHA-256 (taille configurable)
+    Calcule les composants nécessaires pour construire le DD.
+    Par défaut on prépare :
+      - iss_slash : "MM/DD/YYYY"
+      - batch : séquence numérique dérivée du hash
+      - exp_yy : 2 derniers chiffres de l'année d'expiration (EXP_ALT)
+      - exp_yy_plus1 : (exp_year + 1) % 100 (EXP)
+      - sec_alpha : séquence alpha extraite du SHA-256
+      - sec_hex : queue hex du SHA-256 (utile si besoin)
+    NOTE : on cache hash_sha256 et hash_source dans l'UI mais on les inclut dans l'export JSON.
     """
-    iss_slash = issue_date.strftime("%m/%d/%Y")            # "09/30/2015"
-    exp_yy = exp_date.strftime("%y")                      # "21"
-    # base string for hashing: combine iss (no slash), office, exp_yy and a random salt for variability
+    iss_slash = issue_date.strftime("%m/%d/%Y")
+    exp_yy = exp_date.strftime("%y")                      # EXP_ALT (ex: "20")
+    exp_yy_plus1 = f"{(exp_date.year + 1) % 100:02d}"     # EXP (ex: "21") -> permet reproduire l'exemple
     base_for_hash = issue_date.strftime("%m%d%Y") + office_code + exp_yy
-    # include a deterministic salt to avoid collisions for same inputs across runs (optional)
     hash_val = _sha256_upper(base_for_hash)
-    batch = derive_batch_from_hash(hash_val, length=batch_length)   # numeric batch like "60221"
-    sec_alpha = derive_alpha_from_hash(hash_val, length=sec_length) # alpha part like "FD"
-    # also provide a numeric sec if desired (last N hex digits)
-    sec_hex = hash_val[-sec_length:].upper()
+    batch = derive_batch_from_hash(hash_val, length=batch_length)
+    sec_alpha = derive_alpha_from_hash(hash_val, length=sec_alpha_length)
+    sec_hex = hash_val[-sec_alpha_length:].upper()
     return {
         "iss_slash": iss_slash,
         "fo_code": office_code,
         "batch": batch,
         "exp_yy": exp_yy,
+        "exp_yy_plus1": exp_yy_plus1,
         "sec_alpha": sec_alpha,
         "sec_hex": sec_hex,
         "hash_source": base_for_hash,
         "hash_sha256": hash_val
     }
 
-def build_dd_from_components(components: dict, template: str = "{ISS}{FO}{BATCH}/{EXP}{SEC}/{EXP}") -> str:
+def build_dd_from_components(components: dict, template: str) -> str:
     """
     Construit la chaîne DD à partir des composants et d'un template.
-    Template placeholders:
-      {ISS}   -> ISS_MM/DD/YYYY (iss_slash)
-      {FO}    -> FO code
-      {BATCH} -> batch numeric
-      {EXP}   -> EXP_YY
-      {SEC}   -> SEC (on utilisera sec_alpha)
-    Exemple template par défaut : "{ISS}{FO}{BATCH}/{EXP}{SEC}/{EXP}"
+    Placeholders disponibles :
+      {ISS} -> iss_slash
+      {FO}  -> fo_code
+      {BATCH} -> batch
+      {EXP} -> exp_yy_plus1
+      {EXP_ALT} -> exp_yy
+      {SEC} -> sec_alpha
+    Exemple template par défaut (conforme à l'exemple fourni) :
+      "{ISS}{BATCH}/{EXP}{SEC}/{EXP_ALT}"
     """
     dd = template.replace("{ISS}", components["iss_slash"]) \
                  .replace("{FO}", components["fo_code"]) \
                  .replace("{BATCH}", components["batch"]) \
-                 .replace("{EXP}", components["exp_yy"]) \
+                 .replace("{EXP}", components["exp_yy_plus1"]) \
+                 .replace("{EXP_ALT}", components["exp_yy"]) \
                  .replace("{SEC}", components["sec_alpha"])
     return dd
 
-def to_json_result(result: dict) -> str:
-    return json.dumps(result, ensure_ascii=False, indent=2)
+# ---------------------------
+# UI helpers (tooltips, CSS)
+# ---------------------------
 
-def calculate_age(birth_date: date, ref_date: date) -> int:
-    return ref_date.year - birth_date.year - ((ref_date.month, ref_date.day) < (birth_date.month, birth_date.day))
-
-def safe_subtract_years(d: date, years: int) -> date:
-    try:
-        return date(d.year - years, d.month, d.day)
-    except ValueError:
-        return date(d.year - years, 2, 28)
-
-# ---------- UI helpers ----------
 TOOLTIPS = {
-    "DOB": "Date de naissance — format YYYY-MM-DD. Doit être ≤ aujourd'hui - 16 ans.",
-    "ISS": "Date d'émission — format YYYY-MM-DD. Doit être antérieure à aujourd'hui.",
-    "FO": "Code du bureau DMV — ex. 509 (Pasadena).",
-    "SEC": "Séquence de sécurité extraite d'un SHA-256 (alpha part).",
+    "DOB": "Date de naissance — doit être ≤ aujourd'hui - 16 ans.",
+    "ISS": "Date d'émission — doit être antérieure à aujourd'hui.",
+    "FO": "Bureau (Field Office) — sélectionnez le bureau d'impression.",
+    "EXPORT": "Choisissez le format d'export. Les détails techniques sont inclus dans le fichier exporté."
 }
 
 def label_with_tooltip(key: str, label_text: str) -> str:
@@ -156,24 +156,26 @@ TOOLTIP_CSS = """
   transition: opacity 0.14s ease, transform 0.14s ease;
   font-size: 13px; line-height: 1.3; max-width: 420px;
 }
-.label-tooltip:hover .tooltip-text, .label-tooltip:focus-within .tooltip-text { visibility: visible; opacity: 1; transform: translateY(0); }
-.tooltip-text::after { content: ""; position: absolute; top: 100%; left: 12px; border-width: 6px; border-style: solid; border-color: rgba(15,23,42,0.96) transparent transparent transparent; }
+.label-tooltip:hover .tooltip-text { visibility: visible; opacity: 1; transform: translateY(0); }
 </style>
 """
 
-# ---------- App UI ----------
-st.set_page_config(page_title="Calcul DL + DD (format cible)", layout="centered")
+# ---------------------------
+# Interface principale
+# ---------------------------
+
+st.set_page_config(page_title="DL + DD Generator (final)", layout="centered")
 st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
-st.title("Générateur DL + DD (format cible)")
-st.caption("DD construit selon un template configurable. Exemple cible : '09/30/201560221/21FD/20'")
+st.title("Générateur DL et DD — format cible")
+st.caption("UI épurée : les détails techniques sont cachés mais inclus dans l'export. Choisissez le format d'export.")
 
 today = date.today()
-min_dob_allowed = safe_subtract_years(today, 120)
-max_dob_allowed = safe_subtract_years(today, 16)
+min_dob_allowed = date(today.year - 120, today.month, today.day)
+max_dob_allowed = date(today.year - 16, today.month, today.day)
 max_iss_allowed = today - timedelta(days=1)
 
-# Field Office codes (display with code)
+# Field Office codes (affichage avec code)
 office_codes = {
     "Pasadena (509)": "509",
     "Los Angeles (Hope St) (502)": "502",
@@ -189,22 +191,31 @@ office_codes = {
     "Long Beach (507)": "507"
 }
 
-# Sidebar options for DD formatting
-st.sidebar.header("Options DD")
+# Sidebar : options de format DD et export
+st.sidebar.header("Options")
 security_alpha_length = st.sidebar.selectbox("Longueur SEC (lettres)", options=[2, 4], index=0)
 batch_length = st.sidebar.selectbox("Longueur BATCH (chiffres)", options=[4, 5, 6], index=1)
-# Template input (advanced) - default matches the example-like format
-default_template = "{ISS}{FO}{BATCH}/{EXP}{SEC}/{EXP}"
-template = st.sidebar.text_input("Template DD (placeholders: {ISS},{FO},{BATCH},{EXP},{SEC})", value=default_template)
+# Template par défaut reproduisant l'exemple "09/30/201560221/21FD/20"
+default_template = "{ISS}{BATCH}/{EXP}{SEC}/{EXP_ALT}"
+template = st.sidebar.text_input("Template DD (placeholders: {ISS},{FO},{BATCH},{EXP},{EXP_ALT},{SEC})",
+                                 value=default_template)
 
+export_format = st.sidebar.selectbox("Format d'export (menu déroulant)", options=[
+    "JSON", "TXT", "CSV", "XLSX", "PNG", "PDF", "PSD (archive)", "WEBHP (archive)"
+])
+
+# Formulaire principal
 col1, col2 = st.columns(2)
 
 with col1:
     ln = st.text_input("Nom de famille (LN)", value="Harms")
     fn = st.text_input("Prénom (FN)", value="Rosa")
-    dob = st.date_input("Date de naissance (DOB)", value=date(1990, 12, 31), min_value=min_dob_allowed, max_value=max_dob_allowed)
-    iss = st.date_input("Date d'émission (ISS)", value=date(2015, 9, 30), max_value=max_iss_allowed)
-    office_display = st.selectbox("Code du bureau DMV", options=list(office_codes.keys()))
+    st.markdown(label_with_tooltip("DOB", "Date de naissance (DOB, YYYY-MM-DD)"), unsafe_allow_html=True)
+    dob = st.date_input("", value=date(1990, 12, 31), min_value=min_dob_allowed, max_value=max_dob_allowed)
+    st.markdown(label_with_tooltip("ISS", "Date d'émission (ISS, YYYY-MM-DD)"), unsafe_allow_html=True)
+    iss = st.date_input("", value=date(2015, 9, 30), max_value=max_iss_allowed)
+    st.markdown(label_with_tooltip("FO", "Bureau (Field Office)"), unsafe_allow_html=True)
+    office_display = st.selectbox("", options=list(office_codes.keys()))
 
 with col2:
     sex = st.selectbox("Sexe (SEX)", options=["F", "M", "X"], index=0)
@@ -216,11 +227,11 @@ with col2:
     rstr = st.text_input("Restrictions (RSTR)", value="NONE")
     end = st.text_input("Endorsements (END)", value="")
 
-# ---------- Calcul ----------
+# Bouton calculer
 if st.button("Calculer"):
     errors = []
 
-    # Basic validations
+    # Vérifications basiques
     if not ln.strip():
         errors.append("Le nom de famille (LN) est obligatoire.")
     if not fn.strip():
@@ -231,40 +242,41 @@ if st.button("Calculer"):
         errors.append("Date d'émission invalide.")
 
     if isinstance(dob, date) and dob > max_dob_allowed:
-        errors.append(f"DOB invalide : doit être au plus le {max_dob_allowed.isoformat()} (âge ≥ 16 ans).")
+        errors.append(f"La date de naissance doit être au plus le {max_dob_allowed.isoformat()} (âge ≥ 16 ans).")
     if isinstance(iss, date) and iss >= today:
-        errors.append("ISS invalide : doit être antérieure à aujourd'hui.")
+        errors.append("La date d'émission doit être antérieure à aujourd'hui.")
     if isinstance(dob, date) and isinstance(iss, date) and iss <= dob:
-        errors.append("ISS invalide : doit être postérieure à DOB.")
+        errors.append("La date d'émission doit être postérieure à la date de naissance.")
 
+    # Calcul EXP (anniversaire + 5 ans)
     exp = None
     if isinstance(dob, date) and isinstance(iss, date):
         exp = calc_expiration(dob, iss)
         if exp <= today:
-            errors.append(f"EXP invalide ({exp.isoformat()}) : doit être strictement après {today.isoformat()}.")
+            errors.append(f"La date d'expiration calculée ({exp.isoformat()}) n'est pas valide. Elle doit être strictement après {today.isoformat()}.")
 
     if errors:
         for e in errors:
             st.error(e)
         st.stop()
 
-    # Generate DL and DD components
+    # Génération DL et composants DD
     dl = calc_dl(ln, dob)
     office_code = office_codes[office_display]
-    dd_components = calc_dd_components(iss, exp, office_code, sec_length=security_alpha_length, batch_length=batch_length)
-    # Build DD string using template (SEC uses sec_alpha)
+    dd_components = calc_dd_components(iss, exp, office_code,
+                                      sec_alpha_length=security_alpha_length,
+                                      batch_length=batch_length)
     dd = build_dd_from_components(dd_components, template=template)
 
-    # Placeholder for uniqueness check in DB (implementation depends on your DB)
-    # if db.exists({"DD": dd}): ...
-    age_at_issue = calculate_age(dob, iss)
-    age_now = calculate_age(dob, today)
+    # Résultat JSON complet (inclut les détails techniques)
+    age_at_issue = (iss.year - dob.year) - ((iss.month, iss.day) < (dob.month, dob.day))
+    age_now = (today.year - dob.year) - ((today.month, today.day) < (dob.month, dob.day))
 
     result = {
         "DL": dl,
         "DD": dd,
-        "DD_components": dd_components,
-        "DD_template_used": template,
+        "DD_structure": template,
+        "DD_components": dd_components,   # contient hash_sha256 et hash_source (technique)
         "EXP": exp.isoformat(),
         "ISS": iss.isoformat(),
         "LN": ln,
@@ -281,48 +293,161 @@ if st.button("Calculer"):
         "RSTR": rstr,
         "END": end,
         "OFFICE_DISPLAY": office_display,
-        "OFFICE_CODE": office_code,
-        "SEC_ALPHA_LENGTH": security_alpha_length,
-        "BATCH_LENGTH": batch_length
+        "OFFICE_CODE": office_code
     }
 
-    # ---------- Affichage ----------
-    st.subheader("Résultats simulés")
+    # ---------- Affichage épuré (cache les détails techniques) ----------
+    st.subheader("Résultats (aperçu)")
     st.write(f"**DL :** {dl}")
-    st.write(f"**DD (final) :** {dd}")
-    st.write(f"**Template utilisé :** {template}")
-    st.write("**Composants DD détaillés :**")
-    st.write(f"- ISS (MM/DD/YYYY) : {dd_components['iss_slash']}")
-    st.write(f"- FO code : {dd_components['fo_code']}")
-    st.write(f"- BATCH (numeric) : {dd_components['batch']}")
-    st.write(f"- EXP_YY : {dd_components['exp_yy']}")
-    st.write(f"- SEC (alpha) : {dd_components['sec_alpha']}")
-    st.write(f"- SEC (hex tail) : {dd_components['sec_hex']}")
-    st.write(f"- SHA-256 (full) : {dd_components['hash_sha256']}")
-    st.write("---")
+    st.write(f"**DD :** {dd}")
     st.write(f"**EXP :** {exp.isoformat()}  (doit être strictement après {today.isoformat()})")
     st.write(f"**ISS :** {iss.isoformat()}")
     st.write(f"**Office :** {office_display} — code {office_code}")
     st.write("---")
-    st.write(f"**LN :** {ln}")
-    st.write(f"**FN :** {fn}")
+    st.write(f"**Nom :** {ln} {fn}")
     st.write(f"**DOB :** {dob.isoformat()}  — **Âge maintenant :** {age_now} ans")
-    st.write(f"**Âge au moment de l'émission :** {age_at_issue} ans")
-    st.write(f"**SEX :** {sex}")
-    st.write(f"**HGT :** {hgt}")
-    st.write(f"**WGT :** {wgt}")
-    st.write(f"**HAIR :** {hair}")
-    st.write(f"**EYES :** {eyes}")
-    st.write(f"**CLASS :** {pclass}")
-    st.write(f"**RSTR :** {rstr}")
-    st.write(f"**END :** {end}")
+    st.write(f"**Sexe :** {sex} — **Taille :** {hgt} — **Poids :** {wgt}")
 
+    # ---------- Préparer l'export selon le format choisi ----------
+    def make_json_bytes(obj: dict) -> bytes:
+        return json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
+
+    def make_txt_bytes(obj: dict) -> bytes:
+        return json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
+
+    def make_csv_bytes(obj: dict) -> bytes:
+        # Flatten DD_components for CSV
+        flat = obj.copy()
+        comps = flat.pop("DD_components", {})
+        for k, v in comps.items():
+            flat[f"DD_{k}"] = v
+        df = pd.DataFrame([flat])
+        buf = io.StringIO()
+        df.to_csv(buf, index=False)
+        return buf.getvalue().encode("utf-8")
+
+    def make_xlsx_bytes(obj: dict) -> bytes:
+        flat = obj.copy()
+        comps = flat.pop("DD_components", {})
+        for k, v in comps.items():
+            flat[f"DD_{k}"] = v
+        df = pd.DataFrame([flat])
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="DL_DD")
+        return buf.getvalue()
+
+    def make_png_bytes(obj: dict) -> bytes:
+        # Simple PNG rendering of key fields (clean, non-technical)
+        text_lines = [
+            f"DL: {obj['DL']}",
+            f"DD: {obj['DD']}",
+            f"ISS: {obj['ISS']}",
+            f"EXP: {obj['EXP']}",
+            f"Name: {obj['LN']} {obj['FN']}",
+            f"DOB: {obj['DOB']}"
+        ]
+        # Create image
+        width, height = 900, 220 + 20 * len(text_lines)
+        img = Image.new("RGB", (width, height), color=(255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        try:
+            font = ImageFont.truetype("DejaVuSans.ttf", 16)
+        except Exception:
+            font = ImageFont.load_default()
+        y = 20
+        for line in text_lines:
+            draw.text((20, y), line, fill=(10, 10, 10), font=font)
+            y += 28
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+
+    def make_pdf_bytes(obj: dict) -> bytes:
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=A4)
+        x_margin = 40
+        y = 800
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(x_margin, y, "DL / DD Export")
+        y -= 24
+        c.setFont("Helvetica", 10)
+        lines = [
+            f"DL: {obj['DL']}",
+            f"DD: {obj['DD']}",
+            f"ISS: {obj['ISS']}",
+            f"EXP: {obj['EXP']}",
+            f"Name: {obj['LN']} {obj['FN']}",
+            f"DOB: {obj['DOB']}",
+            f"Sexe: {obj['SEX']}",
+            f"Taille: {obj['HGT']}  Poids: {obj['WGT']}"
+        ]
+        for line in lines:
+            c.drawString(x_margin, y, line)
+            y -= 18
+        c.showPage()
+        c.save()
+        return buf.getvalue()
+
+    def make_archive_bytes(obj: dict, archive_name: str) -> bytes:
+        # Create a zip containing JSON + PNG for PSD/WEBHP placeholders
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as z:
+            z.writestr(f"{archive_name}.json", json.dumps(obj, ensure_ascii=False, indent=2))
+            z.writestr(f"{archive_name}.png", make_png_bytes(obj))
+            # Add a small README explaining this is a generated placeholder
+            readme = ("Fichier généré automatiquement. Pour PSD/WEBHP, "
+                      "ce zip contient une image PNG et le JSON complet.")
+            z.writestr("README.txt", readme)
+        return buf.getvalue()
+
+    # Map format -> bytes + filename + mime
+    filename_base = f"dl_{dl}"
+    if export_format == "JSON":
+        data_bytes = make_json_bytes(result)
+        file_name = f"{filename_base}.json"
+        mime = "application/json"
+    elif export_format == "TXT":
+        data_bytes = make_txt_bytes(result)
+        file_name = f"{filename_base}.txt"
+        mime = "text/plain"
+    elif export_format == "CSV":
+        data_bytes = make_csv_bytes(result)
+        file_name = f"{filename_base}.csv"
+        mime = "text/csv"
+    elif export_format == "XLSX":
+        data_bytes = make_xlsx_bytes(result)
+        file_name = f"{filename_base}.xlsx"
+        mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    elif export_format == "PNG":
+        data_bytes = make_png_bytes(result)
+        file_name = f"{filename_base}.png"
+        mime = "image/png"
+    elif export_format == "PDF":
+        data_bytes = make_pdf_bytes(result)
+        file_name = f"{filename_base}.pdf"
+        mime = "application/pdf"
+    elif export_format == "PSD (archive)":
+        data_bytes = make_archive_bytes(result, filename_base)
+        file_name = f"{filename_base}_psd_placeholder.zip"
+        mime = "application/zip"
+    elif export_format == "WEBHP (archive)":
+        data_bytes = make_archive_bytes(result, filename_base)
+        file_name = f"{filename_base}_webhp_placeholder.zip"
+        mime = "application/zip"
+    else:
+        st.error("Format d'export non supporté.")
+        st.stop()
+
+    # Bouton de téléchargement
     st.download_button(
-        label="Exporter résultats (JSON)",
-        data=to_json_result(result),
-        file_name=f"dl_simulation_{dl}.json",
-        mime="application/json"
+        label=f"Télécharger ({export_format})",
+        data=data_bytes,
+        file_name=file_name,
+        mime=mime
     )
 
-    st.subheader("JSON (simulation)")
-    st.code(to_json_result(result), language="json")
+    # Afficher JSON complet (technique) uniquement si l'utilisateur le souhaite
+    if st.checkbox("Afficher JSON complet (inclut détails techniques)"):
+        st.subheader("JSON complet (technique)")
+        st.code(json.dumps(result, ensure_ascii=False, indent=2), language="json")
