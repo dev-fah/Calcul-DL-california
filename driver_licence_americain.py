@@ -6,14 +6,7 @@ from datetime import date, datetime, timedelta
 import hashlib
 
 # ---------------------------
-# app.py - Version finale (contraintes précises)
-# - DOB et ISS via calendrier (st.date_input) en format affiché YYYY-MM-DD
-# - DOB doit être ≤ (au plus) aujourd'hui - 16 ans (âge >= 16)
-# - ISS doit être strictement antérieure à aujourd'hui
-# - EXP = anniversaire du titulaire, 5 ans après l'année d'émission
-# - Règle spécifique demandée : l'année courante (ex. 2026) est comptable pour EXP,
-#   mais la date d'expiration doit être strictement après la date du jour (exp > today).
-# - Tous les champs obligatoires sont vérifiés
+# Fonctions utilitaires
 # ---------------------------
 
 def calc_expiration(dob: date, issue_date: date) -> date:
@@ -22,11 +15,10 @@ def calc_expiration(dob: date, issue_date: date) -> date:
     try:
         return date(exp_year, dob.month, dob.day)
     except ValueError:
-        # Cas 29 février -> 28 février si non bissextile
         return date(exp_year, 2, 28)
 
 def calc_dl(last_name: str, dob: date) -> str:
-    """Génération académique déterministe d'un numéro DL : Lettre + 7 chiffres dérivés de la DOB."""
+    """DL simulé : initiale du nom + 7 chiffres dérivés de la DOB."""
     if not last_name or not re.search(r'[A-Za-z]', last_name):
         letter = "X"
     else:
@@ -41,7 +33,7 @@ def calc_dl(last_name: str, dob: date) -> str:
     return f"{letter}{digits}"
 
 def calc_dd(issue_date: date) -> str:
-    """Génération simulée du Document Discriminator (DD) : MMDDYYYY + 6 hex chars."""
+    """DD simulé : MMDDYYYY + 6 hex chars."""
     code = issue_date.strftime("%m%d%Y")
     suffix = hashlib.md5(code.encode()).hexdigest()[:6].upper()
     return f"{code}{suffix}"
@@ -53,26 +45,19 @@ def calculate_age(birth_date: date, ref_date: date) -> int:
     return ref_date.year - birth_date.year - ((ref_date.month, ref_date.day) < (birth_date.month, birth_date.day))
 
 def safe_subtract_years(d: date, years: int) -> date:
-    """Soustrait des années en gérant 29 février."""
     try:
         return date(d.year - years, d.month, d.day)
     except ValueError:
         return date(d.year - years, 2, 28)
 
+# ---------------------------
 # Tooltips
+# ---------------------------
+
 TOOLTIPS = {
-    "LN": "Nom de famille — nom de famille du titulaire.",
-    "FN": "Prénom — prénom du titulaire.",
-    "DOB": "Date de naissance — format YYYY-MM-DD. Doit être ≤ aujourd'hui - 16 ans.",
+    "DOB": "Date de naissance — doit être ≤ aujourd'hui - 16 ans.",
     "ISS": "Date d'émission — doit être antérieure à aujourd'hui.",
-    "EXP": "Date d'expiration — anniversaire + 5 ans ; doit être strictement après aujourd'hui.",
-    "DL": "Driver License — initiale du nom + 7 chiffres (simulation).",
-    "DD": "Document Discriminator — code simulé basé sur ISS.",
-    "SEX": "Sexe — M ou F (ou X).",
-    "HGT": "Taille — ex. 5'-08''.",
-    "WGT": "Poids — ex. 175 lb.",
-    "CLASS": "Classe de permis — ex. C.",
-    "RSTR": "Restrictions — ex. NONE."
+    "EXP": "Date d'expiration — doit être strictement après aujourd'hui (année courante comptable)."
 }
 
 def label_with_tooltip(key: str, label_text: str) -> str:
@@ -87,118 +72,76 @@ def label_with_tooltip(key: str, label_text: str) -> str:
 TOOLTIP_CSS = """
 <style>
 .label-tooltip { position: relative; display: inline-block; margin-bottom: 6px; }
-.label-text { font-weight: 600; color: #0f172a; text-decoration: underline dotted; cursor: help; padding-right: 6px; }
+.label-text { font-weight: 600; color: #0f172a; text-decoration: underline dotted; cursor: help; }
 .tooltip-text {
-  visibility: hidden; width: max-content; max-width: 360px; background-color: rgba(15,23,42,0.96); color: #fff;
-  text-align: left; border-radius: 8px; padding: 10px 12px; position: absolute; z-index: 9999; bottom: 135%; left: 0;
-  opacity: 0; transform: translateY(8px); transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s;
-  box-shadow: 0 8px 24px rgba(2,6,23,0.25); font-size: 13px; line-height: 1.35;
+  visibility: hidden; background-color: rgba(15,23,42,0.96); color: #fff;
+  border-radius: 6px; padding: 8px 10px; position: absolute; z-index: 9999;
+  bottom: 135%; left: 0; opacity: 0; transform: translateY(6px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  font-size: 13px; line-height: 1.3;
 }
-.label-tooltip:hover .tooltip-text, .label-tooltip:focus-within .tooltip-text { visibility: visible; opacity: 1; transform: translateY(0); }
-.tooltip-text::after { content: ""; position: absolute; top: 100%; left: 14px; border-width: 7px; border-style: solid; border-color: rgba(15,23,42,0.96) transparent transparent transparent; }
-.label-tooltip.dob .label-text { color: #0b5cff; font-size: 15px; }
-.label-tooltip.dob .tooltip-text { max-width: 420px; font-size: 14px; padding: 12px 14px; background-color: rgba(11,92,255,0.95); color: #ffffff; box-shadow: 0 10px 30px rgba(11,92,255,0.12); }
-.label-text:focus { outline: 3px solid rgba(11,92,255,0.18); outline-offset: 2px; border-radius: 4px; }
+.label-tooltip:hover .tooltip-text { visibility: visible; opacity: 1; transform: translateY(0); }
+.tooltip-text::after { content: ""; position: absolute; top: 100%; left: 12px;
+  border-width: 6px; border-style: solid; border-color: rgba(15,23,42,0.96) transparent transparent transparent; }
 </style>
 """
 
+# ---------------------------
 # Interface
-st.set_page_config(page_title="Calcul DL - Contraintes précises", layout="centered")
+# ---------------------------
+
+st.set_page_config(page_title="Calcul DL - Contraintes finales", layout="centered")
 st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
 st.title("Calcul DL California — contraintes de date")
-st.caption("Cliquez sur une date pour ouvrir le calendrier. Les dates s'affichent en YYYY-MM-DD dans les résultats.")
+st.caption("DOB ≤ aujourd'hui - 16 ans ; ISS < aujourd'hui ; EXP > aujourd'hui (année courante comptable).")
 
 today = date.today()
-min_dob_allowed = safe_subtract_years(today, 120)   # limite raisonnable
-max_dob_allowed = safe_subtract_years(today, 16)    # DOB ≤ today - 16 ans (âge ≥ 16)
-max_iss_allowed = today - timedelta(days=1)         # ISS < today (strictement antérieure)
+min_dob_allowed = safe_subtract_years(today, 120)
+max_dob_allowed = safe_subtract_years(today, 16)
+max_iss_allowed = today - timedelta(days=1)
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown(label_with_tooltip("LN", "Nom de famille (LN)"), unsafe_allow_html=True)
-    ln = st.text_input("", value="Harms", placeholder="Ex: Harms")
-
-    st.markdown(label_with_tooltip("FN", "Prénom (FN)"), unsafe_allow_html=True)
-    fn = st.text_input("", value="Rosa", placeholder="Ex: Rosa")
-
-    # DOB : calendrier, max = today - 16 years (inclus)
-    st.markdown('''
-    <div class="label-tooltip dob">
-      <span class="label-text" title="Date de naissance — format YYYY-MM-DD. Doit être ≤ aujourd'hui - 16 ans.">Date de naissance (DOB, YYYY-MM-DD)</span>
-      <span class="tooltip-text" role="tooltip">Date de naissance — format YYYY-MM-DD. Doit être ≤ aujourd'hui - 16 ans.</span>
-    </div>
-    ''', unsafe_allow_html=True)
+    st.markdown(label_with_tooltip("DOB", "Date de naissance (DOB, YYYY-MM-DD)"), unsafe_allow_html=True)
     dob = st.date_input("", value=date(1990, 12, 31), min_value=min_dob_allowed, max_value=max_dob_allowed, key="dob_input")
 
     st.markdown(label_with_tooltip("ISS", "Date d'émission (ISS, YYYY-MM-DD)"), unsafe_allow_html=True)
-    # ISS : calendrier, max = today - 1 day (strictement antérieure)
     iss = st.date_input("", value=date(2015, 9, 30), max_value=max_iss_allowed, key="iss_input")
 
 with col2:
-    st.markdown(label_with_tooltip("SEX", "Sexe (SEX)"), unsafe_allow_html=True)
-    sex = st.selectbox("", options=["F", "M", "X"], index=0)
-
-    st.markdown(label_with_tooltip("HGT", "Taille (HGT)"), unsafe_allow_html=True)
-    hgt = st.text_input("", value="5'-08''", placeholder="Ex: 5'-08''")
-
-    st.markdown(label_with_tooltip("WGT", "Poids (WGT)"), unsafe_allow_html=True)
-    wgt = st.text_input("", value="175 lb", placeholder="Ex: 175 lb")
-
-    st.markdown(label_with_tooltip("CLASS", "Classe (CLASS)"), unsafe_allow_html=True)
-    pclass = st.text_input("", value="C", placeholder="Ex: C")
-
-    st.markdown(label_with_tooltip("RSTR", "Restrictions (RSTR)"), unsafe_allow_html=True)
-    rstr = st.text_input("", value="NONE", placeholder="Ex: NONE")
+    st.markdown(label_with_tooltip("EXP", "Date d'expiration (calculée)"), unsafe_allow_html=True)
 
 # Bouton calculer
 if st.button("Calculer"):
     errors = []
 
-    # Champs obligatoires
-    if not ln.strip():
-        errors.append("Le nom de famille (LN) est obligatoire.")
-    if not fn.strip():
-        errors.append("Le prénom (FN) est obligatoire.")
     if not isinstance(dob, date):
         errors.append("Date de naissance invalide.")
     if not isinstance(iss, date):
         errors.append("Date d'émission invalide.")
 
-    # DOB doit être ≤ today - 16 ans (âge >= 16)
-    if isinstance(dob, date):
-        if dob > max_dob_allowed:
-            errors.append(f"La date de naissance doit être au plus le {max_dob_allowed.isoformat()} (âge ≥ 16 ans).")
+    # Vérifications
+    if dob > max_dob_allowed:
+        errors.append(f"La date de naissance doit être au plus le {max_dob_allowed.isoformat()} (âge ≥ 16 ans).")
+    if iss >= today:
+        errors.append("La date d'émission doit être antérieure à aujourd'hui.")
+    if iss <= dob:
+        errors.append("La date d'émission doit être postérieure à la date de naissance.")
 
-    # ISS doit être strictement antérieure à aujourd'hui
-    if isinstance(iss, date):
-        if iss >= today:
-            errors.append("La date d'émission doit être antérieure à aujourd'hui.")
+    exp = calc_expiration(dob, iss)
+    # Règle finale : EXP doit être strictement > today
+    if exp <= today:
+        errors.append(f"La date d'expiration ({exp.isoformat()}) n'est pas valide. Elle doit être strictement après {today.isoformat()}.")
 
-    # ISS doit être postérieure à DOB (logique)
-    if isinstance(dob, date) and isinstance(iss, date):
-        if iss <= dob:
-            errors.append("La date d'émission doit être postérieure à la date de naissance.")
-
-    # Calcul EXP et règle spécifique : EXP.year peut être l'année courante,
-    # mais la date d'expiration doit être strictement après aujourd'hui (exp > today).
-    if isinstance(dob, date) and isinstance(iss, date):
-        exp = calc_expiration(dob, iss)
-        if not (exp > today):
-            # exp n'est pas strictement dans le futur -> erreur
-            errors.append("La date d'expiration calculée n'est pas strictement dans le futur. Vérifiez ISS et DOB.")
-    else:
-        exp = None
-
-    # Afficher erreurs si présentes
     if errors:
         for e in errors:
             st.error(e)
         st.stop()
 
-    # Tout est OK -> générer DL, DD, âges
-    dl = calc_dl(ln, dob)
+    # Calculs
+    dl = calc_dl("Harms", dob)
     dd = calc_dd(iss)
     age_at_issue = calculate_age(dob, iss)
     age_now = calculate_age(dob, today)
@@ -208,33 +151,17 @@ if st.button("Calculer"):
         "EXP": exp.isoformat(),
         "ISS": iss.isoformat(),
         "DD": dd,
-        "LN": ln,
-        "FN": fn,
         "DOB": dob.isoformat(),
         "AGE_AT_ISSUE": age_at_issue,
-        "AGE_NOW": age_now,
-        "SEX": sex,
-        "HGT": hgt,
-        "WGT": wgt,
-        "CLASS": pclass,
-        "RSTR": rstr
+        "AGE_NOW": age_now
     }
 
     st.subheader("Résultats simulés")
     st.write(f"**DL :** {dl}")
-    st.write(f"**EXP :** {exp.isoformat()}  (doit être strictement après aujourd'hui)")
+    st.write(f"**EXP :** {exp.isoformat()} (doit être > {today.isoformat()})")
     st.write(f"**ISS :** {iss.isoformat()}")
     st.write(f"**DD :** {dd}")
-    st.write("---")
-    st.write(f"**LN :** {ln}")
-    st.write(f"**FN :** {fn}")
-    st.write(f"**DOB :** {dob.isoformat()}  — **Âge maintenant :** {age_now} ans")
-    st.write(f"**Âge au moment de l'émission :** {age_at_issue} ans")
-    st.write(f"**SEX :** {sex}")
-    st.write(f"**HGT :** {hgt}")
-    st.write(f"**WGT :** {wgt}")
-    st.write(f"**CLASS :** {pclass}")
-    st.write(f"**RSTR :** {rstr}")
+    st.write(f"**DOB :** {dob.isoformat()} — Âge actuel : {age_now} ans ; Âge à l'émission : {age_at_issue} ans")
 
     st.download_button(
         label="Exporter résultats (JSON)",
