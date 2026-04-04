@@ -6,16 +6,18 @@ from datetime import date, datetime, timedelta
 import hashlib
 
 # ---------------------------
-# app.py - Version finale avec contraintes strictes de date
-# - DOB et ISS doivent être antérieurs à aujourd'hui
-# - DOB doit être au moins 16 ans avant aujourd'hui (âge >= 16)
+# app.py - Version finale (contraintes précises)
+# - DOB et ISS via calendrier (st.date_input) en format affiché YYYY-MM-DD
+# - DOB doit être ≤ (au plus) aujourd'hui - 16 ans (âge >= 16)
 # - ISS doit être strictement antérieure à aujourd'hui
-# - EXP (calculée) doit être strictement dans le futur (exp > today)
-# - Les sélecteurs de date utilisent le calendrier (st.date_input) et l'affichage se fait en YYYY-MM-DD
+# - EXP = anniversaire du titulaire, 5 ans après l'année d'émission
+# - Règle spécifique demandée : l'année courante (ex. 2026) est comptable pour EXP,
+#   mais la date d'expiration doit être strictement après la date du jour (exp > today).
+# - Tous les champs obligatoires sont vérifiés
 # ---------------------------
 
 def calc_expiration(dob: date, issue_date: date) -> date:
-    """Pour conducteurs < 70 ans : expiration = anniversaire du titulaire, 5 ans après l'année d'émission."""
+    """Expiration = anniversaire du titulaire, 5 ans après l'année d'émission."""
     exp_year = issue_date.year + 5
     try:
         return date(exp_year, dob.month, dob.day)
@@ -55,37 +57,32 @@ def safe_subtract_years(d: date, years: int) -> date:
     try:
         return date(d.year - years, d.month, d.day)
     except ValueError:
-        # 29 février -> 28 février
         return date(d.year - years, 2, 28)
 
-# ---------------------------
-# Tooltips (définitions brèves)
-# ---------------------------
-
+# Tooltips
 TOOLTIPS = {
     "LN": "Nom de famille — nom de famille du titulaire.",
     "FN": "Prénom — prénom du titulaire.",
-    "DOB": "Date de naissance — format YYYY-MM-DD. Doit être ≤ (au plus) aujourd'hui - 16 ans.",
-    "ISS": "Date d'émission — date où le permis a été délivré. Doit être antérieure à aujourd'hui.",
-    "EXP": "Date d'expiration — pour <70 ans : anniversaire + 5 ans (doit être dans le futur).",
-    "DL": "Driver License — initiale du nom + 7 chiffres (simulation académique).",
-    "DD": "Document Discriminator — code unique simulé basé sur ISS.",
+    "DOB": "Date de naissance — format YYYY-MM-DD. Doit être ≤ aujourd'hui - 16 ans.",
+    "ISS": "Date d'émission — doit être antérieure à aujourd'hui.",
+    "EXP": "Date d'expiration — anniversaire + 5 ans ; doit être strictement après aujourd'hui.",
+    "DL": "Driver License — initiale du nom + 7 chiffres (simulation).",
+    "DD": "Document Discriminator — code simulé basé sur ISS.",
     "SEX": "Sexe — M ou F (ou X).",
     "HGT": "Taille — ex. 5'-08''.",
-    "WGT": "Poids — en livres (lb).",
-    "CLASS": "Classe de permis — ex. C pour véhicule standard.",
-    "RSTR": "Restrictions — ex. port de lunettes obligatoire."
+    "WGT": "Poids — ex. 175 lb.",
+    "CLASS": "Classe de permis — ex. C.",
+    "RSTR": "Restrictions — ex. NONE."
 }
 
 def label_with_tooltip(key: str, label_text: str) -> str:
     tip = html.escape(TOOLTIPS.get(key, ""))
-    label_html = f'''
+    return f'''
     <div class="label-tooltip">
       <span class="label-text" title="{tip}">{html.escape(label_text)}</span>
       <span class="tooltip-text" role="tooltip">{tip}</span>
     </div>
     '''
-    return label_html
 
 TOOLTIP_CSS = """
 <style>
@@ -105,20 +102,17 @@ TOOLTIP_CSS = """
 </style>
 """
 
-# ---------------------------
-# Interface Streamlit
-# ---------------------------
-
-st.set_page_config(page_title="Calcul DL - Contraintes de date", layout="centered")
+# Interface
+st.set_page_config(page_title="Calcul DL - Contraintes précises", layout="centered")
 st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
 st.title("Calcul DL California — contraintes de date")
-st.caption("Cliquez sur la date pour ouvrir le calendrier. Les formats affichés sont YYYY-MM-DD.")
+st.caption("Cliquez sur une date pour ouvrir le calendrier. Les dates s'affichent en YYYY-MM-DD dans les résultats.")
 
 today = date.today()
-min_dob_allowed = safe_subtract_years(today, 120)  # limite raisonnable pour la saisie
-max_dob_allowed = safe_subtract_years(today, 16)   # DOB doit être ≤ today - 16 ans
-max_iss_allowed = today - timedelta(days=1)        # ISS doit être strictement antérieure à aujourd'hui
+min_dob_allowed = safe_subtract_years(today, 120)   # limite raisonnable
+max_dob_allowed = safe_subtract_years(today, 16)    # DOB ≤ today - 16 ans (âge ≥ 16)
+max_iss_allowed = today - timedelta(days=1)         # ISS < today (strictement antérieure)
 
 col1, col2 = st.columns(2)
 
@@ -129,7 +123,7 @@ with col1:
     st.markdown(label_with_tooltip("FN", "Prénom (FN)"), unsafe_allow_html=True)
     fn = st.text_input("", value="Rosa", placeholder="Ex: Rosa")
 
-    # DOB : date_input avec calendrier ; max_value = today - 16 years (âge >= 16)
+    # DOB : calendrier, max = today - 16 years (inclus)
     st.markdown('''
     <div class="label-tooltip dob">
       <span class="label-text" title="Date de naissance — format YYYY-MM-DD. Doit être ≤ aujourd'hui - 16 ans.">Date de naissance (DOB, YYYY-MM-DD)</span>
@@ -139,7 +133,7 @@ with col1:
     dob = st.date_input("", value=date(1990, 12, 31), min_value=min_dob_allowed, max_value=max_dob_allowed, key="dob_input")
 
     st.markdown(label_with_tooltip("ISS", "Date d'émission (ISS, YYYY-MM-DD)"), unsafe_allow_html=True)
-    # ISS : date_input avec calendrier ; max_value = today - 1 day (strictement antérieure à aujourd'hui)
+    # ISS : calendrier, max = today - 1 day (strictement antérieure)
     iss = st.date_input("", value=date(2015, 9, 30), max_value=max_iss_allowed, key="iss_input")
 
 with col2:
@@ -172,7 +166,7 @@ if st.button("Calculer"):
     if not isinstance(iss, date):
         errors.append("Date d'émission invalide.")
 
-    # DOB doit être ≤ today - 16 ans
+    # DOB doit être ≤ today - 16 ans (âge >= 16)
     if isinstance(dob, date):
         if dob > max_dob_allowed:
             errors.append(f"La date de naissance doit être au plus le {max_dob_allowed.isoformat()} (âge ≥ 16 ans).")
@@ -182,16 +176,18 @@ if st.button("Calculer"):
         if iss >= today:
             errors.append("La date d'émission doit être antérieure à aujourd'hui.")
 
-    # ISS ne peut être antérieure à DOB (logique)
+    # ISS doit être postérieure à DOB (logique)
     if isinstance(dob, date) and isinstance(iss, date):
         if iss <= dob:
             errors.append("La date d'émission doit être postérieure à la date de naissance.")
 
-    # Calcul EXP et vérification qu'elle soit strictement dans le futur
+    # Calcul EXP et règle spécifique : EXP.year peut être l'année courante,
+    # mais la date d'expiration doit être strictement après aujourd'hui (exp > today).
     if isinstance(dob, date) and isinstance(iss, date):
         exp = calc_expiration(dob, iss)
-        if exp <= today:
-            errors.append("La date d'expiration calculée n'est pas dans le futur. Vérifiez la date d'émission et la date de naissance.")
+        if not (exp > today):
+            # exp n'est pas strictement dans le futur -> erreur
+            errors.append("La date d'expiration calculée n'est pas strictement dans le futur. Vérifiez ISS et DOB.")
     else:
         exp = None
 
@@ -201,7 +197,7 @@ if st.button("Calculer"):
             st.error(e)
         st.stop()
 
-    # Si tout est OK, générer les autres champs simulés
+    # Tout est OK -> générer DL, DD, âges
     dl = calc_dl(ln, dob)
     dd = calc_dd(iss)
     age_at_issue = calculate_age(dob, iss)
@@ -226,7 +222,7 @@ if st.button("Calculer"):
 
     st.subheader("Résultats simulés")
     st.write(f"**DL :** {dl}")
-    st.write(f"**EXP :** {exp.isoformat()}  (doit être strictement dans le futur)")
+    st.write(f"**EXP :** {exp.isoformat()}  (doit être strictement après aujourd'hui)")
     st.write(f"**ISS :** {iss.isoformat()}")
     st.write(f"**DD :** {dd}")
     st.write("---")
