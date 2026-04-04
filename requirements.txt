@@ -1,5 +1,5 @@
 streamlit
-reportlab
+reportlab==3.6.12
 pandas
 openpyxl
 pillow
