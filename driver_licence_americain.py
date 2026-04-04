@@ -6,11 +6,12 @@ from datetime import date, datetime
 import hashlib
 
 # ---------------------------
-# Application complète (app.py)
-# - Correction : la Date de naissance (DOB) a maintenant un titre explicite (attribut title)
-# - Infobulles stylées au survol (hover) ; DOB mise en évidence et accessible
-# - Calculs : DL (simulation), EXP (pour < 70 ans), DD (simulation)
-# - Affiche âge au moment de l'émission et âge actuel
+# app.py - Version finale complète
+# - Champs avec labels visibles
+# - Infobulles stylées au survol (hover)
+# - DOB a un titre explicite et une infobulle mise en évidence
+# - Calculs : DL (simulation déterministe), EXP (pour < 70 ans), DD (simulation)
+# - Export JSON
 # ---------------------------
 
 # ---------------------------
@@ -18,10 +19,7 @@ import hashlib
 # ---------------------------
 
 def calc_expiration(dob: date, issue_date: date) -> date:
-    """
-    Pour conducteurs < 70 ans : expiration = anniversaire du titulaire,
-    5 ans après l'année d'émission.
-    """
+    """Pour conducteurs < 70 ans : expiration = anniversaire du titulaire, 5 ans après l'année d'émission."""
     exp_year = issue_date.year + 5
     try:
         return date(exp_year, dob.month, dob.day)
@@ -31,9 +29,9 @@ def calc_expiration(dob: date, issue_date: date) -> date:
 
 def calc_dl(last_name: str, dob: date) -> str:
     """
-    Génération académique et déterministe d'un numéro DL :
-    - Lettre = initiale du nom de famille (majuscule)
-    - 7 chiffres = extraits d'un hash SHA1 de la DOB formatée YYYYMMDD
+    Génération académique déterministe d'un numéro DL :
+    - Lettre = initiale du nom de famille (majuscule) ou 'X' si absent
+    - 7 chiffres = extraits d'un hash SHA1 de la DOB (YYYYMMDD), complétés par MD5 si nécessaire
     """
     if not last_name or not re.search(r'[A-Za-z]', last_name):
         letter = "X"
@@ -89,10 +87,7 @@ TOOLTIPS = {
 }
 
 def label_with_tooltip(key: str, label_text: str) -> str:
-    """
-    Retourne un fragment HTML pour un label avec tooltip stylé.
-    Utilise une structure HTML/CSS pour un hover fluide.
-    """
+    """Retourne un fragment HTML pour un label avec tooltip stylé."""
     tip = html.escape(TOOLTIPS.get(key, ""))
     label_html = f'''
     <div class="label-tooltip">
@@ -146,7 +141,6 @@ TOOLTIP_CSS = """
   opacity: 1;
   transform: translateY(0);
 }
-/* Petite flèche */
 .tooltip-text::after {
   content: "";
   position: absolute;
@@ -161,9 +155,6 @@ TOOLTIP_CSS = """
 .label-tooltip.dob .label-text {
   color: #0b5cff;
   font-size: 15px;
-}
-.label-tooltip.dob .label-text[title] {
-  /* attribut title présent pour accessibilité */
 }
 .label-tooltip.dob .tooltip-text {
   max-width: 420px;
@@ -203,8 +194,7 @@ with col1:
     st.markdown(label_with_tooltip("FN", "Prénom (FN)"), unsafe_allow_html=True)
     fn = st.text_input("", value="Rosa", placeholder="Ex: Rosa")
 
-    # DOB : champ mis en évidence, validation et affichage d'explication
-    # On ajoute la classe 'dob' pour appliquer le style spécifique et on inclut un title explicite
+    # DOB : titre explicite + infobulle mise en évidence
     dob_label_html = '''
     <div class="label-tooltip dob">
       <span class="label-text" title="Date de naissance — format YYYY-MM-DD. Utilisée pour calculer l'âge et générer le DL simulé.">Date de naissance (DOB, YYYY-MM-DD)</span>
@@ -212,8 +202,7 @@ with col1:
     </div>
     '''
     st.markdown(dob_label_html, unsafe_allow_html=True)
-    dob_str = st.text_input("", value="1990-12-31", placeholder="YYYY-MM-DD")
-    st.markdown('<div style="font-size:12px;color:#475569;margin-top:6px;">La date de naissance est essentielle : elle sert au calcul de l\'âge, à la génération du DL simulé, et à fixer la date d\'expiration (anniversaire + 5 ans pour <70 ans).</div>', unsafe_allow_html=True)
+    dob_str = st.text_input("Date de naissance (DOB, YYYY-MM-DD)", value="1990-12-31", placeholder="YYYY-MM-DD")
 
     st.markdown(label_with_tooltip("ISS", "Date d'émission (ISS, YYYY-MM-DD)"), unsafe_allow_html=True)
     iss_str = st.text_input("", value="2015-09-30", placeholder="YYYY-MM-DD")
@@ -309,15 +298,11 @@ if st.button("Calculer"):
     st.subheader("JSON (simulation)")
     st.code(to_json_result(result), language="json")
 
-# Footer explicatif
+# Footer explicatif (court)
 st.markdown(
     """
     **Notes**  
-    - La **Date de naissance (DOB)** est essentielle : elle sert au calcul de l'âge, à la génération déterministe du DL simulé, et à fixer la date d'expiration (anniversaire + 5 ans pour <70 ans).  
-    - Les infobulles apparaissent au survol (hover) du label ; la DOB est mise en évidence et possède un attribut title pour l'accessibilité.  
-    - Les numéros générés ici sont des **simulations déterministes** pour usage académique uniquement.  
-    - Format observé pour les DL californiens : souvent `1 lettre + 7 chiffres`. Ici la lettre = initiale du nom.  
-    - Le Document Discriminator (DD) réel est interne au DMV ; nous simulons un code traçable basé sur la date d'émission.
+    - Les valeurs générées sont des simulations déterministes pour usage académique uniquement.
     """,
     unsafe_allow_html=True
 )
