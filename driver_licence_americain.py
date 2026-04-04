@@ -6,28 +6,30 @@ from datetime import date, datetime, timedelta
 import hashlib
 
 # ---------------------------
-# app.py - Version finale complète et autonome
-# - Champs complets (LN, FN, SEX, HGT, WGT, HAIR, EYES, CLASS, RSTR, END)
-# - Labels visibles + infobulles au survol
-# - DOB et ISS via calendrier (st.date_input) avec contraintes :
-#     * DOB ≤ today - 16 years (âge ≥ 16)
-#     * ISS < today (strictement antérieure)
-# - EXP = anniversaire + 5 ans après l'année d'émission
-#     * EXP peut être dans l'année courante mais doit être strictement > today
-# - Validation complète et messages d'erreur
-# - Export JSON et affichage des résultats
+# app.py - Version finale complète
+# - Aucun champ d'entrée pour EXP (date d'expiration) : EXP est calculée automatiquement
+# - EXP = anniversaire du titulaire, 5 ans après l'année d'émission (anniversary + 5 years)
+# - DOB ≤ today - 16 years (âge ≥ 16)
+# - ISS < today (strictement antérieure)
+# - EXP peut tomber dans l'année courante, mais doit être strictement > today (jour courant KO)
+# - Validation complète, infobulles, export JSON
 # ---------------------------
 
-# Utilitaires -----------------------------------------------------------------
+# ---------------------------
+# Fonctions utilitaires
+# ---------------------------
 
 def calc_expiration(dob: date, issue_date: date) -> date:
+    """Expiration = anniversaire du titulaire, 5 ans après l'année d'émission."""
     exp_year = issue_date.year + 5
     try:
         return date(exp_year, dob.month, dob.day)
     except ValueError:
+        # Cas 29 février -> 28 février si non bissextile
         return date(exp_year, 2, 28)
 
 def calc_dl(last_name: str, dob: date) -> str:
+    """DL simulé : initiale du nom + 7 chiffres dérivés de la DOB (déterministe)."""
     if not last_name or not re.search(r'[A-Za-z]', last_name):
         letter = "X"
     else:
@@ -42,6 +44,7 @@ def calc_dl(last_name: str, dob: date) -> str:
     return f"{letter}{digits}"
 
 def calc_dd(issue_date: date) -> str:
+    """DD simulé : MMDDYYYY + 6 hex chars."""
     code = issue_date.strftime("%m%d%Y")
     suffix = hashlib.md5(code.encode()).hexdigest()[:6].upper()
     return f"{code}{suffix}"
@@ -58,16 +61,18 @@ def safe_subtract_years(d: date, years: int) -> date:
     except ValueError:
         return date(d.year - years, 2, 28)
 
-# Tooltips -------------------------------------------------------------------
+# ---------------------------
+# Tooltips / UI helpers
+# ---------------------------
 
 TOOLTIPS = {
     "LN": "Nom de famille — ex. Dupont.",
     "FN": "Prénom — ex. Marie.",
     "SEX": "Sexe — M, F ou X.",
     "HGT": "Taille — format libre, ex. 5'-08''.",
-    "WGT": "Poids — en livres (lb) ou kg selon préférence.",
-    "HAIR": "Couleur des cheveux — ex. BLK, BLN, BRN.",
-    "EYES": "Couleur des yeux — ex. BLU, BRO, GRN.",
+    "WGT": "Poids — ex. 175 lb.",
+    "HAIR": "Cheveux — ex. BRN.",
+    "EYES": "Yeux — ex. BRO.",
     "DOB": "Date de naissance — format YYYY-MM-DD. Doit être ≤ aujourd'hui - 16 ans.",
     "ISS": "Date d'émission — format YYYY-MM-DD. Doit être antérieure à aujourd'hui.",
     "EXP": "Date d'expiration (calculée) — anniversaire + 5 ans ; doit être strictement après aujourd'hui.",
@@ -103,19 +108,22 @@ TOOLTIP_CSS = """
 </style>
 """
 
-# Interface ------------------------------------------------------------------
+# ---------------------------
+# Interface Streamlit
+# ---------------------------
 
-st.set_page_config(page_title="Calcul DL - Final", layout="centered")
+st.set_page_config(page_title="Calcul DL - Final (EXP calculée)", layout="centered")
 st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
 st.title("Calcul académique des champs d'un permis de conduire Californie")
-st.caption("Cliquez sur une date pour ouvrir le calendrier. Les dates s'affichent en YYYY-MM-DD.")
+st.caption("DOB ≤ aujourd'hui - 16 ans ; ISS < aujourd'hui ; EXP calculée = anniversaire + 5 ans (doit être > aujourd'hui).")
 
 today = date.today()
 min_dob_allowed = safe_subtract_years(today, 120)
 max_dob_allowed = safe_subtract_years(today, 16)   # DOB ≤ today - 16 years
 max_iss_allowed = today - timedelta(days=1)        # ISS < today (strictement antérieure)
 
+# Formulaire
 col1, col2 = st.columns(2)
 
 with col1:
@@ -142,10 +150,10 @@ with col2:
     wgt = st.text_input("", value="175 lb", placeholder="Ex: 175 lb")
 
     st.markdown(label_with_tooltip("HAIR", "Cheveux (HAIR)"), unsafe_allow_html=True)
-    hair = st.text_input("", value="", placeholder="Ex: BRN")
+    hair = st.text_input("", value="BRN", placeholder="Ex: BRN")
 
     st.markdown(label_with_tooltip("EYES", "Yeux (EYES)"), unsafe_allow_html=True)
-    eyes = st.text_input("", value="", placeholder="Ex: BRO")
+    eyes = st.text_input("", value="BRO", placeholder="Ex: BRO")
 
     st.markdown(label_with_tooltip("CLASS", "Classe (CLASS)"), unsafe_allow_html=True)
     pclass = st.text_input("", value="C", placeholder="Ex: C")
@@ -156,8 +164,7 @@ with col2:
     st.markdown(label_with_tooltip("END", "Endorsements (END)"), unsafe_allow_html=True)
     end = st.text_input("", value="", placeholder="Ex: MOTORCYCLE")
 
-# Actions --------------------------------------------------------------------
-
+# Bouton calculer
 if st.button("Calculer"):
     errors = []
 
@@ -179,14 +186,15 @@ if st.button("Calculer"):
     if isinstance(iss, date) and iss >= today:
         errors.append("La date d'émission doit être antérieure à aujourd'hui.")
 
-    # ISS doit être postérieure à DOB
+    # ISS doit être postérieure à DOB (logique)
     if isinstance(dob, date) and isinstance(iss, date) and iss <= dob:
         errors.append("La date d'émission doit être postérieure à la date de naissance.")
 
-    # Calcul EXP et règle finale : EXP doit être strictement > today
+    # Calcul EXP (basée sur l'anniversaire + 5 ans)
     exp = None
     if isinstance(dob, date) and isinstance(iss, date):
         exp = calc_expiration(dob, iss)
+        # Règle stricte : EXP doit être strictement après today
         if exp <= today:
             errors.append(f"La date d'expiration calculée ({exp.isoformat()}) n'est pas valide. Elle doit être strictement après {today.isoformat()}.")
 
@@ -225,7 +233,7 @@ if st.button("Calculer"):
     # Affichage résultats
     st.subheader("Résultats simulés")
     st.write(f"**DL :** {dl}")
-    st.write(f"**EXP :** {exp.isoformat()}  (doit être strictement après {today.isoformat()})")
+    st.write(f"**EXP (calculée) :** {exp.isoformat()}  — (doit être strictement après {today.isoformat()})")
     st.write(f"**ISS :** {iss.isoformat()}")
     st.write(f"**DD :** {dd}")
     st.write("---")
