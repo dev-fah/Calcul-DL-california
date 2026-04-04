@@ -5,6 +5,14 @@ import json
 from datetime import date, datetime
 import hashlib
 
+# ---------------------------
+# app.py - Version finale avec contraintes de date
+# - Utilise st.date_input (calendrier) pour DOB et ISS
+# - DOB et ISS doivent être antérieurs à aujourd'hui (obligatoire)
+# - EXP est calculée (anniversaire + 5 ans) et doit être dans le futur (obligatoire)
+# - Infobulles au survol pour chaque label
+# ---------------------------
+
 def calc_expiration(dob: date, issue_date: date) -> date:
     exp_year = issue_date.year + 5
     try:
@@ -42,17 +50,14 @@ TOOLTIPS = {
     "FN": "Prénom — prénom du titulaire.",
     "DOB": "Date de naissance — format YYYY-MM-DD. Utilisée pour calculer l'âge et générer le DL simulé.",
     "ISS": "Date d'émission — date où le permis a été délivré.",
-    "EXP": "Date d'expiration — pour <70 ans : anniversaire + 5 ans.",
+    "EXP": "Date d'expiration — pour <70 ans : anniversaire + 5 ans (doit être dans le futur).",
     "DL": "Driver License — initiale du nom + 7 chiffres (simulation académique).",
     "DD": "Document Discriminator — code unique simulé basé sur ISS.",
     "SEX": "Sexe — M ou F (ou X).",
     "HGT": "Taille — ex. 5'-08''.",
     "WGT": "Poids — en livres (lb).",
-    "HAIR": "Couleur des cheveux.",
-    "EYES": "Couleur des yeux.",
     "CLASS": "Classe de permis — ex. C pour véhicule standard.",
-    "RSTR": "Restrictions — ex. port de lunettes obligatoire.",
-    "END": "Endorsements — autorisations spéciales."
+    "RSTR": "Restrictions — ex. port de lunettes obligatoire."
 }
 
 def label_with_tooltip(key: str, label_text: str) -> str:
@@ -83,13 +88,15 @@ TOOLTIP_CSS = """
 </style>
 """
 
-st.set_page_config(page_title="Calcul DL California - Académique", layout="centered")
+st.set_page_config(page_title="Calcul DL California - Contraintes de date", layout="centered")
 st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
-st.title("Calcul académique des champs d'un permis de conduire Californie ( < 70 ans )")
-st.caption("Survolez les labels pour voir une définition brève.")
+st.title("Calcul DL California — contraintes de date")
+st.caption("Cliquez sur la date pour ouvrir le calendrier. DOB et ISS doivent être antérieurs à aujourd'hui ; EXP doit être dans le futur.")
 
 col1, col2 = st.columns(2)
+
+today = date.today()
 
 with col1:
     st.markdown(label_with_tooltip("LN", "Nom de famille (LN)"), unsafe_allow_html=True)
@@ -98,17 +105,18 @@ with col1:
     st.markdown(label_with_tooltip("FN", "Prénom (FN)"), unsafe_allow_html=True)
     fn = st.text_input("", value="Rosa", placeholder="Ex: Rosa")
 
-    dob_label_html = '''
+    # DOB : date_input avec calendrier ; max_value = aujourd'hui (ne permet pas de choisir une date future)
+    st.markdown('''
     <div class="label-tooltip dob">
       <span class="label-text" title="Date de naissance — format YYYY-MM-DD. Utilisée pour calculer l'âge et générer le DL simulé.">Date de naissance (DOB, YYYY-MM-DD)</span>
       <span class="tooltip-text" role="tooltip">Date de naissance — format YYYY-MM-DD. Utilisée pour calculer l'âge et générer le DL simulé.</span>
     </div>
-    '''
-    st.markdown(dob_label_html, unsafe_allow_html=True)
-    dob_str = st.text_input("Date de naissance (DOB, YYYY-MM-DD)", value="1990-12-31", placeholder="YYYY-MM-DD")
+    ''', unsafe_allow_html=True)
+    dob = st.date_input("", value=date(1990, 12, 31), max_value=today, key="dob_input")
 
     st.markdown(label_with_tooltip("ISS", "Date d'émission (ISS, YYYY-MM-DD)"), unsafe_allow_html=True)
-    iss_str = st.text_input("", value="2015-09-30", placeholder="YYYY-MM-DD")
+    # ISS : date_input avec calendrier ; max_value = aujourd'hui
+    iss = st.date_input("", value=date(2015, 9, 30), max_value=today, key="iss_input")
 
 with col2:
     st.markdown(label_with_tooltip("SEX", "Sexe (SEX)"), unsafe_allow_html=True)
@@ -126,28 +134,51 @@ with col2:
     st.markdown(label_with_tooltip("RSTR", "Restrictions (RSTR)"), unsafe_allow_html=True)
     rstr = st.text_input("", value="NONE", placeholder="Ex: NONE")
 
+# Bouton calculer
 if st.button("Calculer"):
-    try:
-        dob = datetime.strptime(dob_str.strip(), "%Y-%m-%d").date()
-    except Exception:
-        st.error("Format DOB invalide. Utilisez YYYY-MM-DD.")
+    # Vérifications obligatoires
+    errors = []
+
+    # Champs obligatoires : LN, FN, DOB, ISS
+    if not ln.strip():
+        errors.append("Le nom de famille (LN) est obligatoire.")
+    if not fn.strip():
+        errors.append("Le prénom (FN) est obligatoire.")
+    if not isinstance(dob, date):
+        errors.append("Date de naissance invalide.")
+    if not isinstance(iss, date):
+        errors.append("Date d'émission invalide.")
+
+    # DOB et ISS doivent être antérieurs à aujourd'hui
+    if isinstance(dob, date) and dob >= today:
+        errors.append("La date de naissance doit être antérieure à aujourd'hui.")
+    if isinstance(iss, date) and iss >= today:
+        errors.append("La date d'émission doit être antérieure à aujourd'hui.")
+
+    # Calcul âge au moment de l'émission
+    if isinstance(dob, date) and isinstance(iss, date):
+        age_at_issue = calculate_age(dob, iss)
+    else:
+        age_at_issue = None
+
+    # Calcul EXP et vérification qu'elle soit dans le futur
+    if isinstance(dob, date) and isinstance(iss, date):
+        exp = calc_expiration(dob, iss)
+        if exp <= today:
+            errors.append("La date d'expiration calculée n'est pas dans le futur. Ajustez la date d'émission ou vérifiez la date de naissance.")
+    else:
+        exp = None
+
+    # Afficher erreurs si présentes
+    if errors:
+        for e in errors:
+            st.error(e)
         st.stop()
 
-    try:
-        iss = datetime.strptime(iss_str.strip(), "%Y-%m-%d").date()
-    except Exception:
-        st.error("Format ISS invalide. Utilisez YYYY-MM-DD.")
-        st.stop()
-
-    age_at_issue = calculate_age(dob, iss)
-    age_now = calculate_age(dob, date.today())
-
-    if age_at_issue >= 70:
-        st.warning("Ce calcul est conçu pour les conducteurs de moins de 70 ans.")
-
+    # Si tout est OK, générer les autres champs simulés
     dl = calc_dl(ln, dob)
-    exp = calc_expiration(dob, iss)
     dd = calc_dd(iss)
+    age_now = calculate_age(dob, today)
 
     result = {
         "DL": dl,
@@ -162,16 +193,13 @@ if st.button("Calculer"):
         "SEX": sex,
         "HGT": hgt,
         "WGT": wgt,
-        "HAIR": "",
-        "EYES": "",
         "CLASS": pclass,
-        "RSTR": rstr,
-        "END": ""
+        "RSTR": rstr
     }
 
     st.subheader("Résultats simulés")
     st.write(f"**DL :** {dl}")
-    st.write(f"**EXP :** {exp.isoformat()}")
+    st.write(f"**EXP :** {exp.isoformat()} (doit être dans le futur)")
     st.write(f"**ISS :** {iss.isoformat()}")
     st.write(f"**DD :** {dd}")
     st.write("---")
