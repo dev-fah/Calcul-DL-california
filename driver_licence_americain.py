@@ -1,5 +1,5 @@
 # driver_licence_americain.py
-# UI/UX : boutons alignés et aperçu en cartes (sans tableau récapitulatif)
+# UI/UX : boutons alignés et icône de téléchargement intégrée
 # Dépendances (pour info) : streamlit, pandas, openpyxl
 # pip install streamlit pandas openpyxl
 
@@ -11,7 +11,12 @@ import random
 import json
 from io import BytesIO
 
-st.set_page_config(page_title="Générateur DL — UI/UX boutons alignés", layout="wide")
+st.set_page_config(page_title="Générateur DL — UI/UX boutons alignés + icône", layout="wide")
+
+# -------------------------
+# Icône de téléchargement (URL fournie par l'utilisateur)
+# -------------------------
+DOWNLOAD_ICON_URL = "https://img.icons8.com/external-anggara-glyph-anggara-putra/32/external-download-music-audio-anggara-glyph-anggara-putra.png"
 
 # -------------------------
 # CSS pour UI moderne & alignement des boutons
@@ -39,7 +44,7 @@ body { background: linear-gradient(180deg,#f7fbff 0%, #ffffff 100%); }
     box-shadow:0 6px 14px rgba(37,99,235,0.12);
 }
 
-/* Download button (same visual weight) */
+/* Download button style */
 .stDownloadButton>button {
     background: linear-gradient(90deg,#06b6d4,#0ea5e9);
     color:white;
@@ -55,6 +60,13 @@ body { background: linear-gradient(180deg,#f7fbff 0%, #ffffff 100%); }
     gap:12px;
     justify-content:flex-end;
     align-items:center;
+}
+
+/* Petite icône alignée */
+.download-icon {
+    display:flex;
+    align-items:center;
+    justify-content:center;
 }
 
 /* Small helpers */
@@ -167,7 +179,7 @@ with st.form(key="form_main"):
 st.info("Note : le tableau récapitulatif est désactivé — l'aperçu est présenté en cartes.")
 
 # -------------------------
-# Traitement et Aperçu (cartes seulement) avec boutons alignés
+# Traitement et Aperçu (cartes seulement) avec icône de téléchargement alignée
 # -------------------------
 if calculate:
     try:
@@ -219,12 +231,13 @@ if calculate:
         with st.expander("Détails techniques (BATCH / SEC / SEQ)", expanded=False):
             st.json({"BATCH": result["BATCH"], "SEC": result["SEC"], "SEQ": result["SEQ"], "GENERATED_AT": result["GENERATED_AT"]})
 
-        # ---------- Alignement du bouton de téléchargement et message de succès ----------
-        # On crée une rangée de boutons alignée à droite : d'abord un espace large, puis le bouton
-        btn_left, btn_right = st.columns([3, 1])
-        with btn_left:
-            st.write("")  # espace pour pousser le bouton à droite
-        with btn_right:
+        # ---------- Alignement du bouton de téléchargement avec icône ----------
+        # On crée une rangée de colonnes : large espace à gauche, puis icône + bouton alignés à droite
+        spacer, icon_col, btn_col = st.columns([3, 0.2, 1])
+        with icon_col:
+            # afficher l'icône fournie par l'utilisateur
+            st.image(DOWNLOAD_ICON_URL, width=32)
+        with btn_col:
             if export_format == "JSON":
                 data_bytes = to_json_bytes(result); mime = "application/json"; fname = "dl_dd_generated.json"
             elif export_format == "CSV":
