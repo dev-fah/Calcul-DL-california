@@ -1,40 +1,40 @@
-# app.py - Version finale prête à copier
-# - Génération DD au format configurable (ex. "09/30/201560221/21FD/20")
-# - Interface épurée : cache les détails techniques dans l'UI, mais les inclut dans l'export JSON
-# - Menu déroulant d'export : JSON, TXT, CSV, XLSX, PNG, PDF, PSD (archive), WEBHP (archive)
-# - Séquence de sécurité basée sur SHA-256 (extraction configurable)
-# - Validation DOB / ISS / EXP conforme à tes règles
-#
-# Dépendances : streamlit, pandas, openpyxl, pillow, reportlab, io, zipfile
-# Installer si nécessaire : pip install streamlit pandas openpyxl pillow reportlab
-
 import streamlit as st
 import html
 import re
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 import hashlib
 import io
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
 import zipfile
 
+# Try to import reportlab for PDF export; if missing, disable PDF option gracefully
+pdf_supported = True
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+except Exception:
+    pdf_supported = False
+
 # ---------------------------
-# Fonctions utilitaires
+# Utilitaires
 # ---------------------------
 
+def safe_subtract_years(d: date, years: int) -> date:
+    try:
+        return date(d.year - years, d.month, d.day)
+    except Exception:
+        return date(d.year - years, 2, 28)
+
 def calc_expiration(dob: date, issue_date: date) -> date:
-    """Expiration = anniversaire du titulaire, 5 ans après l'année d'émission."""
     exp_year = issue_date.year + 5
     try:
         return date(exp_year, dob.month, dob.day)
-    except ValueError:
+    except Exception:
         return date(exp_year, 2, 28)
 
 def calc_dl(last_name: str, dob: date) -> str:
-    """DL simulé : initiale du nom + 7 chiffres dérivés de la DOB (déterministe)."""
     if not last_name or not re.search(r'[A-Za-z]', last_name):
         letter = "X"
     else:
@@ -52,7 +52,6 @@ def _sha256_upper(s: str) -> str:
     return hashlib.sha256(s.encode()).hexdigest().upper()
 
 def derive_batch_from_hash(hash_val: str, length: int = 5) -> str:
-    """Extrait une séquence numérique (batch) depuis le hash en prenant les chiffres disponibles."""
     digits = ''.join([c for c in hash_val if c.isdigit()])
     if len(digits) < length:
         extra = ''.join([str(ord(c) % 10) for c in hash_val[:length]])
@@ -60,7 +59,6 @@ def derive_batch_from_hash(hash_val: str, length: int = 5) -> str:
     return digits[:length]
 
 def derive_alpha_from_hash(hash_val: str, length: int = 2) -> str:
-    """Extrait une séquence alphabétique depuis le hash (A-Z)."""
     letters = ''.join([c for c in hash_val if c.isalpha()])
     if len(letters) < length:
         mapped = []
@@ -73,20 +71,9 @@ def derive_alpha_from_hash(hash_val: str, length: int = 2) -> str:
 
 def calc_dd_components(issue_date: date, exp_date: date, office_code: str,
                        sec_alpha_length: int = 2, batch_length: int = 5) -> dict:
-    """
-    Calcule les composants nécessaires pour construire le DD.
-    Par défaut on prépare :
-      - iss_slash : "MM/DD/YYYY"
-      - batch : séquence numérique dérivée du hash
-      - exp_yy : 2 derniers chiffres de l'année d'expiration (EXP_ALT)
-      - exp_yy_plus1 : (exp_year + 1) % 100 (EXP)
-      - sec_alpha : séquence alpha extraite du SHA-256
-      - sec_hex : queue hex du SHA-256 (utile si besoin)
-    NOTE : on cache hash_sha256 et hash_source dans l'UI mais on les inclut dans l'export JSON.
-    """
     iss_slash = issue_date.strftime("%m/%d/%Y")
-    exp_yy = exp_date.strftime("%y")                      # EXP_ALT (ex: "20")
-    exp_yy_plus1 = f"{(exp_date.year + 1) % 100:02d}"     # EXP (ex: "21") -> permet reproduire l'exemple
+    exp_yy = exp_date.strftime("%y")
+    exp_yy_plus1 = f"{(exp_date.year + 1) % 100:02d}"
     base_for_hash = issue_date.strftime("%m%d%Y") + office_code + exp_yy
     hash_val = _sha256_upper(base_for_hash)
     batch = derive_batch_from_hash(hash_val, length=batch_length)
@@ -105,18 +92,6 @@ def calc_dd_components(issue_date: date, exp_date: date, office_code: str,
     }
 
 def build_dd_from_components(components: dict, template: str) -> str:
-    """
-    Construit la chaîne DD à partir des composants et d'un template.
-    Placeholders disponibles :
-      {ISS} -> iss_slash
-      {FO}  -> fo_code
-      {BATCH} -> batch
-      {EXP} -> exp_yy_plus1
-      {EXP_ALT} -> exp_yy
-      {SEC} -> sec_alpha
-    Exemple template par défaut (conforme à l'exemple fourni) :
-      "{ISS}{BATCH}/{EXP}{SEC}/{EXP_ALT}"
-    """
     dd = template.replace("{ISS}", components["iss_slash"]) \
                  .replace("{FO}", components["fo_code"]) \
                  .replace("{BATCH}", components["batch"]) \
@@ -125,8 +100,11 @@ def build_dd_from_components(components: dict, template: str) -> str:
                  .replace("{SEC}", components["sec_alpha"])
     return dd
 
+def to_json_result(result: dict) -> bytes:
+    return json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8")
+
 # ---------------------------
-# UI helpers (tooltips, CSS)
+# UI helpers
 # ---------------------------
 
 TOOLTIPS = {
@@ -161,21 +139,20 @@ TOOLTIP_CSS = """
 """
 
 # ---------------------------
-# Interface principale
+# App UI
 # ---------------------------
 
-st.set_page_config(page_title="DL + DD Generator (final)", layout="centered")
+st.set_page_config(page_title="DL + DD Generator", layout="centered")
 st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
-st.title("Générateur DL et DD — format cible")
-st.caption("UI épurée : les détails techniques sont cachés mais inclus dans l'export. Choisissez le format d'export.")
+st.title("Générateur DL et DD")
+st.caption("UI épurée : les détails techniques sont inclus dans l'export. Choisissez le format d'export.")
 
 today = date.today()
-min_dob_allowed = date(today.year - 120, today.month, today.day)
-max_dob_allowed = date(today.year - 16, today.month, today.day)
+min_dob_allowed = safe_subtract_years(today, 120)
+max_dob_allowed = safe_subtract_years(today, 16)
 max_iss_allowed = today - timedelta(days=1)
 
-# Field Office codes (affichage avec code)
 office_codes = {
     "Pasadena (509)": "509",
     "Los Angeles (Hope St) (502)": "502",
@@ -191,20 +168,22 @@ office_codes = {
     "Long Beach (507)": "507"
 }
 
-# Sidebar : options de format DD et export
+# Sidebar options
 st.sidebar.header("Options")
 security_alpha_length = st.sidebar.selectbox("Longueur SEC (lettres)", options=[2, 4], index=0)
 batch_length = st.sidebar.selectbox("Longueur BATCH (chiffres)", options=[4, 5, 6], index=1)
-# Template par défaut reproduisant l'exemple "09/30/201560221/21FD/20"
 default_template = "{ISS}{BATCH}/{EXP}{SEC}/{EXP_ALT}"
 template = st.sidebar.text_input("Template DD (placeholders: {ISS},{FO},{BATCH},{EXP},{EXP_ALT},{SEC})",
                                  value=default_template)
 
-export_format = st.sidebar.selectbox("Format d'export (menu déroulant)", options=[
-    "JSON", "TXT", "CSV", "XLSX", "PNG", "PDF", "PSD (archive)", "WEBHP (archive)"
-])
+# Export formats menu: remove PDF if reportlab missing
+export_options = ["JSON", "TXT", "CSV", "XLSX", "PNG", "PSD (archive)", "WEBHP (archive)"]
+if pdf_supported:
+    export_options.insert(5, "PDF")  # insert PDF before PSD
 
-# Formulaire principal
+export_format = st.sidebar.selectbox("Format d'export (menu déroulant)", options=export_options)
+
+# Form
 col1, col2 = st.columns(2)
 
 with col1:
@@ -227,11 +206,9 @@ with col2:
     rstr = st.text_input("Restrictions (RSTR)", value="NONE")
     end = st.text_input("Endorsements (END)", value="")
 
-# Bouton calculer
+# Actions
 if st.button("Calculer"):
     errors = []
-
-    # Vérifications basiques
     if not ln.strip():
         errors.append("Le nom de famille (LN) est obligatoire.")
     if not fn.strip():
@@ -240,7 +217,6 @@ if st.button("Calculer"):
         errors.append("Date de naissance invalide.")
     if not isinstance(iss, date):
         errors.append("Date d'émission invalide.")
-
     if isinstance(dob, date) and dob > max_dob_allowed:
         errors.append(f"La date de naissance doit être au plus le {max_dob_allowed.isoformat()} (âge ≥ 16 ans).")
     if isinstance(iss, date) and iss >= today:
@@ -248,7 +224,6 @@ if st.button("Calculer"):
     if isinstance(dob, date) and isinstance(iss, date) and iss <= dob:
         errors.append("La date d'émission doit être postérieure à la date de naissance.")
 
-    # Calcul EXP (anniversaire + 5 ans)
     exp = None
     if isinstance(dob, date) and isinstance(iss, date):
         exp = calc_expiration(dob, iss)
@@ -260,7 +235,7 @@ if st.button("Calculer"):
             st.error(e)
         st.stop()
 
-    # Génération DL et composants DD
+    # Generate fields
     dl = calc_dl(ln, dob)
     office_code = office_codes[office_display]
     dd_components = calc_dd_components(iss, exp, office_code,
@@ -268,7 +243,6 @@ if st.button("Calculer"):
                                       batch_length=batch_length)
     dd = build_dd_from_components(dd_components, template=template)
 
-    # Résultat JSON complet (inclut les détails techniques)
     age_at_issue = (iss.year - dob.year) - ((iss.month, iss.day) < (dob.month, dob.day))
     age_now = (today.year - dob.year) - ((today.month, today.day) < (dob.month, dob.day))
 
@@ -276,7 +250,7 @@ if st.button("Calculer"):
         "DL": dl,
         "DD": dd,
         "DD_structure": template,
-        "DD_components": dd_components,   # contient hash_sha256 et hash_source (technique)
+        "DD_components": dd_components,
         "EXP": exp.isoformat(),
         "ISS": iss.isoformat(),
         "LN": ln,
@@ -296,7 +270,7 @@ if st.button("Calculer"):
         "OFFICE_CODE": office_code
     }
 
-    # ---------- Affichage épuré (cache les détails techniques) ----------
+    # Display minimal UI
     st.subheader("Résultats (aperçu)")
     st.write(f"**DL :** {dl}")
     st.write(f"**DD :** {dd}")
@@ -306,17 +280,15 @@ if st.button("Calculer"):
     st.write("---")
     st.write(f"**Nom :** {ln} {fn}")
     st.write(f"**DOB :** {dob.isoformat()}  — **Âge maintenant :** {age_now} ans")
-    st.write(f"**Sexe :** {sex} — **Taille :** {hgt} — **Poids :** {wgt}")
 
-    # ---------- Préparer l'export selon le format choisi ----------
+    # Prepare export bytes
     def make_json_bytes(obj: dict) -> bytes:
-        return json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
+        return to_json_result(obj)
 
     def make_txt_bytes(obj: dict) -> bytes:
-        return json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
+        return to_json_result(obj)
 
     def make_csv_bytes(obj: dict) -> bytes:
-        # Flatten DD_components for CSV
         flat = obj.copy()
         comps = flat.pop("DD_components", {})
         for k, v in comps.items():
@@ -338,7 +310,6 @@ if st.button("Calculer"):
         return buf.getvalue()
 
     def make_png_bytes(obj: dict) -> bytes:
-        # Simple PNG rendering of key fields (clean, non-technical)
         text_lines = [
             f"DL: {obj['DL']}",
             f"DD: {obj['DD']}",
@@ -347,7 +318,6 @@ if st.button("Calculer"):
             f"Name: {obj['LN']} {obj['FN']}",
             f"DOB: {obj['DOB']}"
         ]
-        # Create image
         width, height = 900, 220 + 20 * len(text_lines)
         img = Image.new("RGB", (width, height), color=(255, 255, 255))
         draw = ImageDraw.Draw(img)
@@ -364,6 +334,8 @@ if st.button("Calculer"):
         return buf.getvalue()
 
     def make_pdf_bytes(obj: dict) -> bytes:
+        if not pdf_supported:
+            raise RuntimeError("PDF export non disponible : module reportlab introuvable.")
         buf = io.BytesIO()
         c = canvas.Canvas(buf, pagesize=A4)
         x_margin = 40
@@ -390,56 +362,44 @@ if st.button("Calculer"):
         return buf.getvalue()
 
     def make_archive_bytes(obj: dict, archive_name: str) -> bytes:
-        # Create a zip containing JSON + PNG for PSD/WEBHP placeholders
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as z:
             z.writestr(f"{archive_name}.json", json.dumps(obj, ensure_ascii=False, indent=2))
             z.writestr(f"{archive_name}.png", make_png_bytes(obj))
-            # Add a small README explaining this is a generated placeholder
             readme = ("Fichier généré automatiquement. Pour PSD/WEBHP, "
                       "ce zip contient une image PNG et le JSON complet.")
             z.writestr("README.txt", readme)
         return buf.getvalue()
 
-    # Map format -> bytes + filename + mime
+    # Map selection -> bytes
     filename_base = f"dl_{dl}"
-    if export_format == "JSON":
-        data_bytes = make_json_bytes(result)
-        file_name = f"{filename_base}.json"
-        mime = "application/json"
-    elif export_format == "TXT":
-        data_bytes = make_txt_bytes(result)
-        file_name = f"{filename_base}.txt"
-        mime = "text/plain"
-    elif export_format == "CSV":
-        data_bytes = make_csv_bytes(result)
-        file_name = f"{filename_base}.csv"
-        mime = "text/csv"
-    elif export_format == "XLSX":
-        data_bytes = make_xlsx_bytes(result)
-        file_name = f"{filename_base}.xlsx"
-        mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    elif export_format == "PNG":
-        data_bytes = make_png_bytes(result)
-        file_name = f"{filename_base}.png"
-        mime = "image/png"
-    elif export_format == "PDF":
-        data_bytes = make_pdf_bytes(result)
-        file_name = f"{filename_base}.pdf"
-        mime = "application/pdf"
-    elif export_format == "PSD (archive)":
-        data_bytes = make_archive_bytes(result, filename_base)
-        file_name = f"{filename_base}_psd_placeholder.zip"
-        mime = "application/zip"
-    elif export_format == "WEBHP (archive)":
-        data_bytes = make_archive_bytes(result, filename_base)
-        file_name = f"{filename_base}_webhp_placeholder.zip"
-        mime = "application/zip"
-    else:
-        st.error("Format d'export non supporté.")
+    try:
+        if export_format == "JSON":
+            data_bytes = make_json_bytes(result); file_name = f"{filename_base}.json"; mime = "application/json"
+        elif export_format == "TXT":
+            data_bytes = make_txt_bytes(result); file_name = f"{filename_base}.txt"; mime = "text/plain"
+        elif export_format == "CSV":
+            data_bytes = make_csv_bytes(result); file_name = f"{filename_base}.csv"; mime = "text/csv"
+        elif export_format == "XLSX":
+            data_bytes = make_xlsx_bytes(result); file_name = f"{filename_base}.xlsx"; mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        elif export_format == "PNG":
+            data_bytes = make_png_bytes(result); file_name = f"{filename_base}.png"; mime = "image/png"
+        elif export_format == "PDF":
+            if not pdf_supported:
+                st.error("Export PDF non disponible : module reportlab introuvable sur cet environnement.")
+                st.stop()
+            data_bytes = make_pdf_bytes(result); file_name = f"{filename_base}.pdf"; mime = "application/pdf"
+        elif export_format == "PSD (archive)":
+            data_bytes = make_archive_bytes(result, filename_base); file_name = f"{filename_base}_psd_placeholder.zip"; mime = "application/zip"
+        elif export_format == "WEBHP (archive)":
+            data_bytes = make_archive_bytes(result, filename_base); file_name = f"{filename_base}_webhp_placeholder.zip"; mime = "application/zip"
+        else:
+            st.error("Format d'export non supporté.")
+            st.stop()
+    except Exception as e:
+        st.error(f"Erreur lors de la préparation du fichier d'export : {e}")
         st.stop()
 
-    # Bouton de téléchargement
     st.download_button(
         label=f"Télécharger ({export_format})",
         data=data_bytes,
@@ -447,7 +407,11 @@ if st.button("Calculer"):
         mime=mime
     )
 
-    # Afficher JSON complet (technique) uniquement si l'utilisateur le souhaite
     if st.checkbox("Afficher JSON complet (inclut détails techniques)"):
         st.subheader("JSON complet (technique)")
         st.code(json.dumps(result, ensure_ascii=False, indent=2), language="json")
+
+# If PDF is not supported, show a small notice in the UI
+if not pdf_supported:
+    st.info("Note : l'export PDF est désactivé car le module 'reportlab' n'est pas installé sur cet environnement. "
+            "Installez 'reportlab' pour activer l'export PDF.")
