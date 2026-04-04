@@ -1,5 +1,5 @@
 # driver_licence_americain.py
-# UI/UX : boutons alignés et icône de téléchargement intégrée
+# UI/UX : bouton de téléchargement avec icône intégrée (HTML download link)
 # Dépendances (pour info) : streamlit, pandas, openpyxl
 # pip install streamlit pandas openpyxl
 
@@ -9,17 +9,16 @@ import datetime
 import hashlib
 import random
 import json
+import base64
 from io import BytesIO
 
-st.set_page_config(page_title="Générateur DL — UI/UX boutons alignés + icône", layout="wide")
+st.set_page_config(page_title="Générateur DL — Bouton téléchargement avec icône", layout="wide")
 
-# -------------------------
-# Icône de téléchargement (URL fournie par l'utilisateur)
-# -------------------------
+# Icône fournie par l'utilisateur
 DOWNLOAD_ICON_URL = "https://img.icons8.com/external-anggara-glyph-anggara-putra/32/external-download-music-audio-anggara-glyph-anggara-putra.png"
 
 # -------------------------
-# CSS pour UI moderne & alignement des boutons
+# CSS pour UI moderne & bouton custom
 # -------------------------
 st.markdown("""
 <style>
@@ -44,30 +43,23 @@ body { background: linear-gradient(180deg,#f7fbff 0%, #ffffff 100%); }
     box-shadow:0 6px 14px rgba(37,99,235,0.12);
 }
 
-/* Download button style */
-.stDownloadButton>button {
+/* Custom download link styled as button with icon */
+.download-btn {
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
     background: linear-gradient(90deg,#06b6d4,#0ea5e9);
-    color:white;
+    color: #fff !important;
+    padding:8px 14px;
     border-radius:10px;
-    padding:8px 16px;
+    text-decoration:none;
     font-weight:600;
     box-shadow:0 6px 14px rgba(6,182,212,0.12);
 }
+.download-btn img { display:inline-block; vertical-align:middle; }
 
 /* Alignement horizontal des boutons dans un container */
-.button-row {
-    display:flex;
-    gap:12px;
-    justify-content:flex-end;
-    align-items:center;
-}
-
-/* Petite icône alignée */
-.download-icon {
-    display:flex;
-    align-items:center;
-    justify-content:center;
-}
+.button-row { display:flex; gap:12px; justify-content:flex-end; align-items:center; }
 
 /* Small helpers */
 .stDataFrame table { font-size:13px; }
@@ -120,7 +112,7 @@ with st.sidebar:
 # Formulaire principal
 # -------------------------
 st.title("Générateur DL et DD")
-st.markdown("Interface optimisée — boutons alignés pour une meilleure UX, aperçu en cartes.")
+st.markdown("Interface optimisée — bouton de téléchargement avec icône intégré.")
 
 with st.form(key="form_main"):
     left, right = st.columns([2.2, 1], gap="small")
@@ -170,8 +162,6 @@ with st.form(key="form_main"):
         st.metric(label="BATCH len", value=batch_len)
         st.markdown("---")
         export_format = st.selectbox("Format d'export", ["JSON", "CSV", "XLSX"])
-
-        # Aligner le bouton "Calculer" au centre de la colonne Actions
         b1, b2, b3 = st.columns([0.2, 1, 0.2])
         with b2:
             calculate = st.form_submit_button("Calculer")
@@ -179,7 +169,7 @@ with st.form(key="form_main"):
 st.info("Note : le tableau récapitulatif est désactivé — l'aperçu est présenté en cartes.")
 
 # -------------------------
-# Traitement et Aperçu (cartes seulement) avec icône de téléchargement alignée
+# Traitement et Aperçu (cartes seulement) avec icône sur le bouton Télécharger
 # -------------------------
 if calculate:
     try:
@@ -231,23 +221,31 @@ if calculate:
         with st.expander("Détails techniques (BATCH / SEC / SEQ)", expanded=False):
             st.json({"BATCH": result["BATCH"], "SEC": result["SEC"], "SEQ": result["SEQ"], "GENERATED_AT": result["GENERATED_AT"]})
 
-        # ---------- Alignement du bouton de téléchargement avec icône ----------
-        # On crée une rangée de colonnes : large espace à gauche, puis icône + bouton alignés à droite
-        spacer, icon_col, btn_col = st.columns([3, 0.2, 1])
-        with icon_col:
-            # afficher l'icône fournie par l'utilisateur
-            st.image(DOWNLOAD_ICON_URL, width=32)
+        # ---------- Préparer les données d'export ----------
+        if export_format == "JSON":
+            data_bytes = to_json_bytes(result); mime = "application/json"; fname = "dl_dd_generated.json"
+        elif export_format == "CSV":
+            data_bytes = to_csv_bytes(pd.DataFrame([result])); mime = "text/csv"; fname = "dl_dd_generated.csv"
+        else:
+            data_bytes = to_excel_bytes(pd.DataFrame([result])); mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; fname = "dl_dd_generated.xlsx"
+
+        # Convertir en base64 pour créer un lien data URI (sécurisé côté client)
+        b64 = base64.b64encode(data_bytes).decode()
+        data_href = f"data:{mime};base64,{b64}"
+
+        # ---------- Afficher le bouton de téléchargement avec l'icône intégré ----------
+        # On aligne le bouton à droite en utilisant des colonnes
+        spacer, btn_col = st.columns([3, 1])
         with btn_col:
-            if export_format == "JSON":
-                data_bytes = to_json_bytes(result); mime = "application/json"; fname = "dl_dd_generated.json"
-            elif export_format == "CSV":
-                data_bytes = to_csv_bytes(pd.DataFrame([result])); mime = "text/csv"; fname = "dl_dd_generated.csv"
-            else:
-                data_bytes = to_excel_bytes(pd.DataFrame([result])); mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; fname = "dl_dd_generated.xlsx"
+            # HTML link styled as button, contenant l'icône et le label
+            html = f'''
+                <a class="download-btn" href="{data_href}" download="{fname}">
+                    <img src="{DOWNLOAD_ICON_URL}" width="20" height="20" alt="download icon" />
+                    <span>Télécharger</span>
+                </a>
+            '''
+            st.markdown(html, unsafe_allow_html=True)
 
-            st.download_button(label="⬇️ Télécharger", data=data_bytes, file_name=fname, mime=mime)
-
-        # Message de succès centré sous la rangée de boutons
         st.success("Génération terminée — télécharge le fichier si besoin.")
 
     except Exception as e:
