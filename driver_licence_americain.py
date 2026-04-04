@@ -1,5 +1,5 @@
 # driver_licence_americain.py
-# UI optimisée : tailles et espacements ajustés pour une meilleure UX
+# UI optimisée : champs et zone résultat compacts pour meilleure UX
 # Dépendances (pour info) : streamlit, pandas, openpyxl
 # Installer localement : pip install streamlit pandas openpyxl
 
@@ -12,57 +12,67 @@ import random
 from io import BytesIO
 import traceback
 
-# --- Configuration page et style CSS pour contrôler largeur et espacement ---
 st.set_page_config(page_title="Générateur DL et DD", layout="wide")
 
-# CSS pour améliorer l'UI : limiter la largeur, réduire marges et rendre les inputs plus compacts
+# -----------------------
+# CSS pour UI/UX compacte
+# -----------------------
 st.markdown(
     """
     <style>
-    /* Conteneur principal : limite la largeur pour une lecture confortable */
+    /* Conteneur principal : largeur confortable */
     .main .block-container {
         max-width: 980px;
-        padding-top: 1rem;
-        padding-bottom: 1rem;
+        padding-top: 0.8rem;
+        padding-bottom: 0.8rem;
     }
 
-    /* Réduire l'espace vertical entre les widgets */
+    /* Compact widgets spacing */
     .stForm, .stForm > div > div {
         gap: 0.25rem;
     }
 
-    /* Rendre les labels et inputs plus compacts */
-    .stTextInput>div>div>input, .stNumberInput>div>input, .stSelectbox>div>div {
+    /* Inputs compact */
+    input[type="text"], input[type="number"], .stDateInput>div>input {
         padding: 6px 8px;
         height: 36px;
+        font-size: 14px;
     }
 
-    /* Boutons plus compacts */
+    /* Buttons compact */
     .stButton>button {
         padding: 6px 12px;
         height: 36px;
+        font-size: 14px;
     }
 
-    /* Réduire l'espace des en-têtes */
+    /* Headings spacing */
     h1, h2, h3 {
         margin-top: 0.25rem;
         margin-bottom: 0.25rem;
     }
 
-    /* Tableau d'aperçu : police plus petite pour tenir dans l'écran */
+    /* DataFrame smaller font and denser rows */
     .stDataFrame table {
         font-size: 13px;
     }
 
-    /* Sidebar largeur raisonnable */
-    .css-1d391kg { max-width: 300px; } /* class may vary across versions; this is a best-effort */
+    /* JSON box smaller and scrollable */
+    .stJson {
+        max-height: 220px;
+        overflow: auto;
+        font-size: 13px;
+    }
+
+    /* Sidebar width */
+    .css-1d391kg { max-width: 300px; } /* best-effort selector */
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 # -----------------------
-# Fonctions utilitaires
+# Utilitaires
 # -----------------------
 def deterministic_seed(*parts: str) -> int:
     key = "|".join([p or "" for p in parts])
@@ -93,11 +103,10 @@ def to_csv_bytes(df: pd.DataFrame) -> bytes:
     return df.to_csv(index=False).encode("utf-8")
 
 # -----------------------
-# Sidebar : Paramètres avancés (compact)
+# Sidebar : Paramètres avancés
 # -----------------------
 with st.sidebar:
     st.header("Paramètres avancés")
-    # Utiliser colonnes compactes dans la sidebar
     c1, c2 = st.columns([1, 1])
     with c1:
         sec_len = st.number_input("Longueur SEC", min_value=1, max_value=10, value=2, step=1, help="Lettres")
@@ -107,18 +116,15 @@ with st.sidebar:
     st.caption("UI épurée : détails techniques inclus dans l'export.")
 
 # -----------------------
-# Main UI : Formulaire compact et organisé en colonnes
+# Formulaire principal (compact, deux colonnes)
 # -----------------------
 st.title("Générateur DL et DD")
-st.markdown("UI optimisée — champs redimensionnés pour une meilleure lisibilité et ergonomie.")
+st.markdown("Champs et zone résultat optimisés pour une lecture rapide.")
 
-# Formulaire en deux colonnes principales pour réduire hauteur et améliorer scannabilité
 with st.form(key="form_main"):
     left, right = st.columns([2, 1], gap="small")
 
     with left:
-        st.subheader("Données personnelles")
-        # Grouper les champs en lignes pour réduire hauteur
         r1c1, r1c2, r1c3 = st.columns([1.6, 1.2, 1])
         with r1c1:
             ln = st.text_input("Nom de famille (LN)", value="Harms")
@@ -159,22 +165,17 @@ with st.form(key="form_main"):
 
     with right:
         st.subheader("Génération")
-        st.markdown("Paramètres rapides")
-        st.write("")  # petit espace
-        # Afficher valeurs techniques compactes
         st.metric(label="SEC len", value=sec_len)
         st.metric(label="BATCH len", value=batch_len)
         st.markdown("---")
         st.subheader("Export")
         export_format = st.selectbox("Format", ["JSON", "CSV", "XLSX"], index=0)
-        st.write("")  # espace
         calculate = st.form_submit_button("Calculer", use_container_width=True)
 
-# Note visible
 st.info("Note : l’export PDF est désactivé dans cet environnement.")
 
 # -----------------------
-# Traitement après soumission
+# Traitement et affichage résultat compact
 # -----------------------
 if calculate:
     try:
@@ -220,7 +221,7 @@ if calculate:
             "GENERATED_AT": datetime.datetime.utcnow().isoformat() + "Z"
         }
 
-        # Affichage résumé compact
+        # Résumé compact : tableau avec colonnes essentielles
         st.subheader("Aperçu")
         df = pd.DataFrame([{
             "LN": result["LN"],
@@ -235,16 +236,18 @@ if calculate:
             "RSTR": result["RSTR"],
             "DL_NUMBER": result["DL_NUMBER"]
         }])
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, use_container_width=True, height=180)
 
-        st.markdown("### Détails techniques")
-        st.json({
-            "BATCH": result["BATCH"],
-            "SEC": result["SEC"],
-            "SEQ": result["SEQ"]
-        })
+        # Détails techniques dans un expander compact (meilleure UX)
+        with st.expander("Détails techniques (BATCH / SEC / SEQ)", expanded=False):
+            st.json({
+                "BATCH": result["BATCH"],
+                "SEC": result["SEC"],
+                "SEQ": result["SEQ"],
+                "GENERATED_AT": result["GENERATED_AT"]
+            }, expanded=False)
 
-        # Préparer export
+        # Export compact : bouton unique, nom et mime adaptés
         if export_format == "JSON":
             data_bytes = to_json_bytes(result)
             mime = "application/json"
