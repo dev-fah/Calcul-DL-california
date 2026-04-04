@@ -37,7 +37,7 @@ def calc_dd(issue_date: date):
 
 # --- Interface Streamlit ---
 
-st.title("Simulation académique - Permis de conduire Californie")
+st.title("CALCUL DES INFO SUR UN DL CALIFORNIA")
 
 # Formulaire utilisateur
 ln = st.text_input("Nom de famille (LN)", "Harms")
