@@ -7,8 +7,8 @@ import hashlib
 
 # ---------------------------
 # Application complète (app.py)
-# - Infobulles stylées au survol (hover)
-# - DOB mise en évidence : infobulle brève et lisible
+# - Correction : la Date de naissance (DOB) a maintenant un titre explicite (attribut title)
+# - Infobulles stylées au survol (hover) ; DOB mise en évidence et accessible
 # - Calculs : DL (simulation), EXP (pour < 70 ans), DD (simulation)
 # - Affiche âge au moment de l'émission et âge actuel
 # ---------------------------
@@ -96,8 +96,8 @@ def label_with_tooltip(key: str, label_text: str) -> str:
     tip = html.escape(TOOLTIPS.get(key, ""))
     label_html = f'''
     <div class="label-tooltip">
-      <span class="label-text">{html.escape(label_text)}</span>
-      <span class="tooltip-text">{tip}</span>
+      <span class="label-text" title="{tip}">{html.escape(label_text)}</span>
+      <span class="tooltip-text" role="tooltip">{tip}</span>
     </div>
     '''
     return label_html
@@ -140,7 +140,8 @@ TOOLTIP_CSS = """
   font-size: 13px;
   line-height: 1.35;
 }
-.label-tooltip:hover .tooltip-text {
+.label-tooltip:hover .tooltip-text,
+.label-tooltip:focus-within .tooltip-text {
   visibility: visible;
   opacity: 1;
   transform: translateY(0);
@@ -161,6 +162,9 @@ TOOLTIP_CSS = """
   color: #0b5cff;
   font-size: 15px;
 }
+.label-tooltip.dob .label-text[title] {
+  /* attribut title présent pour accessibilité */
+}
 .label-tooltip.dob .tooltip-text {
   max-width: 420px;
   font-size: 14px;
@@ -168,6 +172,13 @@ TOOLTIP_CSS = """
   background-color: rgba(11,92,255,0.95);
   color: #ffffff;
   box-shadow: 0 10px 30px rgba(11,92,255,0.12);
+}
+
+/* Accessibilité : focus visible */
+.label-text:focus {
+  outline: 3px solid rgba(11,92,255,0.18);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 </style>
 """
@@ -193,11 +204,11 @@ with col1:
     fn = st.text_input("", value="Rosa", placeholder="Ex: Rosa")
 
     # DOB : champ mis en évidence, validation et affichage d'explication
-    # On ajoute la classe 'dob' pour appliquer le style spécifique
+    # On ajoute la classe 'dob' pour appliquer le style spécifique et on inclut un title explicite
     dob_label_html = '''
     <div class="label-tooltip dob">
-      <span class="label-text">Date de naissance (DOB, YYYY-MM-DD)</span>
-      <span class="tooltip-text">Date de naissance — format YYYY-MM-DD. Utilisée pour calculer l'âge et générer le DL simulé.</span>
+      <span class="label-text" title="Date de naissance — format YYYY-MM-DD. Utilisée pour calculer l'âge et générer le DL simulé.">Date de naissance (DOB, YYYY-MM-DD)</span>
+      <span class="tooltip-text" role="tooltip">Date de naissance — format YYYY-MM-DD. Utilisée pour calculer l'âge et générer le DL simulé.</span>
     </div>
     '''
     st.markdown(dob_label_html, unsafe_allow_html=True)
@@ -303,7 +314,7 @@ st.markdown(
     """
     **Notes**  
     - La **Date de naissance (DOB)** est essentielle : elle sert au calcul de l'âge, à la génération déterministe du DL simulé, et à fixer la date d'expiration (anniversaire + 5 ans pour <70 ans).  
-    - Les infobulles apparaissent au survol (hover) du label ; la DOB est mise en évidence pour une lecture rapide.  
+    - Les infobulles apparaissent au survol (hover) du label ; la DOB est mise en évidence et possède un attribut title pour l'accessibilité.  
     - Les numéros générés ici sont des **simulations déterministes** pour usage académique uniquement.  
     - Format observé pour les DL californiens : souvent `1 lettre + 7 chiffres`. Ici la lettre = initiale du nom.  
     - Le Document Discriminator (DD) réel est interne au DMV ; nous simulons un code traçable basé sur la date d'émission.
