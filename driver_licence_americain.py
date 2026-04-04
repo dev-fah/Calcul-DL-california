@@ -9,7 +9,7 @@ import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
 import zipfile
 
-# Try to import reportlab for PDF export; if missing, disable PDF option gracefully
+# Import reportlab conditionnel (PDF option)
 pdf_supported = True
 try:
     from reportlab.lib.pagesizes import A4
@@ -100,8 +100,8 @@ def build_dd_from_components(components: dict, template: str) -> str:
                  .replace("{SEC}", components["sec_alpha"])
     return dd
 
-def to_json_result(result: dict) -> bytes:
-    return json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8")
+def to_json_bytes(obj: dict) -> bytes:
+    return json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
 
 # ---------------------------
 # UI helpers
@@ -142,11 +142,11 @@ TOOLTIP_CSS = """
 # App UI
 # ---------------------------
 
-st.set_page_config(page_title="DL + DD Generator", layout="centered")
+st.set_page_config(page_title="DL + DD Generator (final)", layout="centered")
 st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
 st.title("Générateur DL et DD")
-st.caption("UI épurée : les détails techniques sont inclus dans l'export. Choisissez le format d'export.")
+st.caption("UI épurée : les détails techniques sont inclus dans l'export. Choisissez le format d'export dans le menu principal.")
 
 today = date.today()
 min_dob_allowed = safe_subtract_years(today, 120)
@@ -168,22 +168,15 @@ office_codes = {
     "Long Beach (507)": "507"
 }
 
-# Sidebar options
-st.sidebar.header("Options")
+# Sidebar: options that are not essential in main UI
+st.sidebar.header("Paramètres avancés")
 security_alpha_length = st.sidebar.selectbox("Longueur SEC (lettres)", options=[2, 4], index=0)
 batch_length = st.sidebar.selectbox("Longueur BATCH (chiffres)", options=[4, 5, 6], index=1)
 default_template = "{ISS}{BATCH}/{EXP}{SEC}/{EXP_ALT}"
 template = st.sidebar.text_input("Template DD (placeholders: {ISS},{FO},{BATCH},{EXP},{EXP_ALT},{SEC})",
                                  value=default_template)
 
-# Export formats menu: remove PDF if reportlab missing
-export_options = ["JSON", "TXT", "CSV", "XLSX", "PNG", "PSD (archive)", "WEBHP (archive)"]
-if pdf_supported:
-    export_options.insert(5, "PDF")  # insert PDF before PSD
-
-export_format = st.sidebar.selectbox("Format d'export (menu déroulant)", options=export_options)
-
-# Form
+# ---------- MAIN: formulaire + export menu déroulant (visible) ----------
 col1, col2 = st.columns(2)
 
 with col1:
@@ -206,7 +199,14 @@ with col2:
     rstr = st.text_input("Restrictions (RSTR)", value="NONE")
     end = st.text_input("Endorsements (END)", value="")
 
-# Actions
+# Export menu déroulant VISIBLE dans l'UI principale (juste sous le formulaire)
+st.markdown("### Export")
+export_options = ["JSON", "TXT", "CSV", "XLSX", "PNG", "PSD (archive)", "WEBHP (archive)"]
+if pdf_supported:
+    export_options.insert(5, "PDF")
+export_format = st.selectbox("Choisir le format d'export", options=export_options, index=0)
+
+# Bouton calculer / générer
 if st.button("Calculer"):
     errors = []
     if not ln.strip():
@@ -235,7 +235,7 @@ if st.button("Calculer"):
             st.error(e)
         st.stop()
 
-    # Generate fields
+    # Génération
     dl = calc_dl(ln, dob)
     office_code = office_codes[office_display]
     dd_components = calc_dd_components(iss, exp, office_code,
@@ -270,7 +270,7 @@ if st.button("Calculer"):
         "OFFICE_CODE": office_code
     }
 
-    # Display minimal UI
+    # Affichage épuré
     st.subheader("Résultats (aperçu)")
     st.write(f"**DL :** {dl}")
     st.write(f"**DD :** {dd}")
@@ -281,12 +281,12 @@ if st.button("Calculer"):
     st.write(f"**Nom :** {ln} {fn}")
     st.write(f"**DOB :** {dob.isoformat()}  — **Âge maintenant :** {age_now} ans")
 
-    # Prepare export bytes
+    # Préparer bytes pour export
     def make_json_bytes(obj: dict) -> bytes:
-        return to_json_result(obj)
+        return to_json_bytes(obj)
 
     def make_txt_bytes(obj: dict) -> bytes:
-        return to_json_result(obj)
+        return to_json_bytes(obj)
 
     def make_csv_bytes(obj: dict) -> bytes:
         flat = obj.copy()
@@ -411,7 +411,6 @@ if st.button("Calculer"):
         st.subheader("JSON complet (technique)")
         st.code(json.dumps(result, ensure_ascii=False, indent=2), language="json")
 
-# If PDF is not supported, show a small notice in the UI
+# Notice si PDF non disponible
 if not pdf_supported:
-    st.info("Note : l'export PDF est désactivé car le module 'reportlab' n'est pas installé sur cet environnement. "
-            "Installez 'reportlab' pour activer l'export PDF.")
+    st.info("Note : l'export PDF est désactivé car le module 'reportlab' n'est pas installé sur cet environnement. Installez 'reportlab' pour activer l'export PDF.")
