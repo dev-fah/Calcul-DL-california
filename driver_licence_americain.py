@@ -4,14 +4,18 @@ import re
 import json
 from datetime import date, datetime, timedelta
 import hashlib
+import random
+import string
 
 # ---------------------------
-# app.py - Version finale complète (DD structure explicite dans le résultat)
-# - DD = [ISS_MMDDYYYY]-[FO_CODE]-[EXP_YY]-[SEC]
-# - SEC = derniers 4 ou 8 caractères d'un SHA-256
-# - Affiche aussi les composants du DD séparément dans le résultat
-# - DOB ≤ today - 16 ans ; ISS < today ; EXP = anniversaire + 5 ans ; EXP > today
-# - Prêt à copier-coller
+# app.py - Version finale complète
+# - Génération DD selon format configurable inspiré de l'exemple :
+#   Exemple cible : "09/30/201560221/21FD/20"
+# - Template par défaut utilisé : "{ISS_MM/DD/YYYY}{FO}{BATCH}/{EXP_YY}{SEC}/{EXP_YY}"
+# - SEC générée à partir d'un SHA-256 (extraction configurable)
+# - BATCH dérivé du hash (séquence numérique courte) pour simuler le numéro d'impression/lot
+# - Affiche composants DD séparément et la chaîne DD finale
+# - Validation DOB/ISS/EXP inchangée
 # ---------------------------
 
 # ---------- Fonctions utilitaires ----------
@@ -21,7 +25,6 @@ def calc_expiration(dob: date, issue_date: date) -> date:
     try:
         return date(exp_year, dob.month, dob.day)
     except ValueError:
-        # Cas 29 février -> 28 février si non bissextile
         return date(exp_year, 2, 28)
 
 def calc_dl(last_name: str, dob: date) -> str:
@@ -39,34 +42,79 @@ def calc_dl(last_name: str, dob: date) -> str:
     digits = (digits + "0" * 7)[:7]
     return f"{letter}{digits}"
 
-def calc_dd_components(issue_date: date, exp_date: date, office_code: str, length: int = 8) -> dict:
+def _sha256_upper(s: str) -> str:
+    return hashlib.sha256(s.encode()).hexdigest().upper()
+
+def derive_batch_from_hash(hash_val: str, length: int = 5) -> str:
+    """Extrait une séquence numérique (batch) depuis le hash en prenant les chiffres disponibles."""
+    digits = ''.join([c for c in hash_val if c.isdigit()])
+    if len(digits) < length:
+        # fallback: take hex chars and convert to digits
+        extra = ''.join([str(ord(c) % 10) for c in hash_val[:length]])
+        digits += extra
+    return digits[:length]
+
+def derive_alpha_from_hash(hash_val: str, length: int = 2) -> str:
+    """Extrait une séquence alphabétique depuis le hash (A-Z)."""
+    letters = ''.join([c for c in hash_val if c.isalpha()])
+    if len(letters) < length:
+        # fallback: map hex chars to letters
+        mapped = []
+        for ch in hash_val:
+            if len(mapped) >= length:
+                break
+            mapped.append(chr((ord(ch) % 26) + 65))
+        letters += ''.join(mapped)
+    return letters[:length]
+
+def calc_dd_components(issue_date: date, exp_date: date, office_code: str, sec_length: int = 2, batch_length: int = 5) -> dict:
     """
-    Retourne les composants du DD :
-      - iss_mmddyyyy
-      - fo_code
-      - exp_yy
-      - sec (séquence de sécurité)
+    Retourne les composants du DD selon le template utilisé.
+    Template par défaut (exemple cible) : "{ISS_MM/DD/YYYY}{FO}{BATCH}/{EXP_YY}{SEC}/{EXP_YY}"
+    - ISS_MM/DD/YYYY : date d'émission formatée avec slash
+    - FO : code du bureau (ex: 509)
+    - BATCH : séquence numérique dérivée du hash (ex: 60221)
+    - EXP_YY : 2 derniers chiffres de l'année d'expiration (ex: 21)
+    - SEC : séquence alphanumérique de sécurité (ex: FD) extraite du SHA-256 (taille configurable)
     """
-    if length not in (4, 8):
-        raise ValueError("length must be 4 or 8")
-    iss_str = issue_date.strftime("%m%d%Y")
-    exp_yy = exp_date.strftime("%y")
-    base_str = iss_str + office_code + exp_yy
-    hash_val = hashlib.sha256(base_str.encode()).hexdigest().upper()
-    sec = hash_val[-length:]
+    iss_slash = issue_date.strftime("%m/%d/%Y")            # "09/30/2015"
+    exp_yy = exp_date.strftime("%y")                      # "21"
+    # base string for hashing: combine iss (no slash), office, exp_yy and a random salt for variability
+    base_for_hash = issue_date.strftime("%m%d%Y") + office_code + exp_yy
+    # include a deterministic salt to avoid collisions for same inputs across runs (optional)
+    hash_val = _sha256_upper(base_for_hash)
+    batch = derive_batch_from_hash(hash_val, length=batch_length)   # numeric batch like "60221"
+    sec_alpha = derive_alpha_from_hash(hash_val, length=sec_length) # alpha part like "FD"
+    # also provide a numeric sec if desired (last N hex digits)
+    sec_hex = hash_val[-sec_length:].upper()
     return {
-        "iss_mmddyyyy": iss_str,
+        "iss_slash": iss_slash,
         "fo_code": office_code,
+        "batch": batch,
         "exp_yy": exp_yy,
-        "sec": sec,
-        "sec_length": length,
-        "hash_source": base_str,
+        "sec_alpha": sec_alpha,
+        "sec_hex": sec_hex,
+        "hash_source": base_for_hash,
         "hash_sha256": hash_val
     }
 
-def build_dd_from_components(components: dict) -> str:
-    """Construit la chaîne DD à partir des composants."""
-    return f"{components['iss_mmddyyyy']}-{components['fo_code']}-{components['exp_yy']}-{components['sec']}"
+def build_dd_from_components(components: dict, template: str = "{ISS}{FO}{BATCH}/{EXP}{SEC}/{EXP}") -> str:
+    """
+    Construit la chaîne DD à partir des composants et d'un template.
+    Template placeholders:
+      {ISS}   -> ISS_MM/DD/YYYY (iss_slash)
+      {FO}    -> FO code
+      {BATCH} -> batch numeric
+      {EXP}   -> EXP_YY
+      {SEC}   -> SEC (on utilisera sec_alpha)
+    Exemple template par défaut : "{ISS}{FO}{BATCH}/{EXP}{SEC}/{EXP}"
+    """
+    dd = template.replace("{ISS}", components["iss_slash"]) \
+                 .replace("{FO}", components["fo_code"]) \
+                 .replace("{BATCH}", components["batch"]) \
+                 .replace("{EXP}", components["exp_yy"]) \
+                 .replace("{SEC}", components["sec_alpha"])
+    return dd
 
 def to_json_result(result: dict) -> str:
     return json.dumps(result, ensure_ascii=False, indent=2)
@@ -80,16 +128,12 @@ def safe_subtract_years(d: date, years: int) -> date:
     except ValueError:
         return date(d.year - years, 2, 28)
 
-# ---------- Tooltips / UI helpers ----------
+# ---------- UI helpers ----------
 TOOLTIPS = {
-    "LN": "Nom de famille — ex. Dupont.",
-    "FN": "Prénom — ex. Marie.",
-    "SEX": "Sexe — M, F ou X.",
     "DOB": "Date de naissance — format YYYY-MM-DD. Doit être ≤ aujourd'hui - 16 ans.",
     "ISS": "Date d'émission — format YYYY-MM-DD. Doit être antérieure à aujourd'hui.",
-    "EXP": "Date d'expiration (calculée) — anniversaire + 5 ans ; doit être strictement après aujourd'hui.",
     "FO": "Code du bureau DMV — ex. 509 (Pasadena).",
-    "SEC": "Séquence de sécurité extraite d'un SHA-256 (4 ou 8 derniers caractères)."
+    "SEC": "Séquence de sécurité extraite d'un SHA-256 (alpha part).",
 }
 
 def label_with_tooltip(key: str, label_text: str) -> str:
@@ -114,24 +158,22 @@ TOOLTIP_CSS = """
 }
 .label-tooltip:hover .tooltip-text, .label-tooltip:focus-within .tooltip-text { visibility: visible; opacity: 1; transform: translateY(0); }
 .tooltip-text::after { content: ""; position: absolute; top: 100%; left: 12px; border-width: 6px; border-style: solid; border-color: rgba(15,23,42,0.96) transparent transparent transparent; }
-.label-tooltip.dob .label-text { color: #0b5cff; font-size: 15px; }
-.label-tooltip.dob .tooltip-text { background-color: rgba(11,92,255,0.95); box-shadow: 0 10px 30px rgba(11,92,255,0.12); }
 </style>
 """
 
-# ---------- Configuration UI ----------
-st.set_page_config(page_title="Calcul DL + DD (final)", layout="centered")
+# ---------- App UI ----------
+st.set_page_config(page_title="Calcul DL + DD (format cible)", layout="centered")
 st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
-st.title("Calcul académique des champs d'un permis de conduire Californie")
-st.caption("DD structure explicite : ISS_MMDDYYYY - FO_CODE - EXP_YY - SEC (SHA-256).")
+st.title("Générateur DL + DD (format cible)")
+st.caption("DD construit selon un template configurable. Exemple cible : '09/30/201560221/21FD/20'")
 
 today = date.today()
 min_dob_allowed = safe_subtract_years(today, 120)
 max_dob_allowed = safe_subtract_years(today, 16)
 max_iss_allowed = today - timedelta(days=1)
 
-# ---------- Field Office codes (nom + code affichés) ----------
+# Field Office codes (display with code)
 office_codes = {
     "Pasadena (509)": "509",
     "Los Angeles (Hope St) (502)": "502",
@@ -147,58 +189,38 @@ office_codes = {
     "Long Beach (507)": "507"
 }
 
-# Choix longueur SEC (4 ou 8)
-security_length = st.sidebar.selectbox("Longueur séquence de sécurité (SEC)", options=[8, 4], index=0)
+# Sidebar options for DD formatting
+st.sidebar.header("Options DD")
+security_alpha_length = st.sidebar.selectbox("Longueur SEC (lettres)", options=[2, 4], index=0)
+batch_length = st.sidebar.selectbox("Longueur BATCH (chiffres)", options=[4, 5, 6], index=1)
+# Template input (advanced) - default matches the example-like format
+default_template = "{ISS}{FO}{BATCH}/{EXP}{SEC}/{EXP}"
+template = st.sidebar.text_input("Template DD (placeholders: {ISS},{FO},{BATCH},{EXP},{SEC})", value=default_template)
 
-# ---------- Formulaire ----------
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown(label_with_tooltip("LN", "Nom de famille (LN)"), unsafe_allow_html=True)
-    ln = st.text_input("", value="Harms", placeholder="Ex: Harms")
-
-    st.markdown(label_with_tooltip("FN", "Prénom (FN)"), unsafe_allow_html=True)
-    fn = st.text_input("", value="Rosa", placeholder="Ex: Rosa")
-
-    st.markdown(label_with_tooltip("DOB", "Date de naissance (DOB, YYYY-MM-DD)"), unsafe_allow_html=True)
-    dob = st.date_input("", value=date(1990, 12, 31), min_value=min_dob_allowed, max_value=max_dob_allowed)
-
-    st.markdown(label_with_tooltip("ISS", "Date d'émission (ISS, YYYY-MM-DD)"), unsafe_allow_html=True)
-    iss = st.date_input("", value=date(2015, 9, 30), max_value=max_iss_allowed)
-
-    st.markdown(label_with_tooltip("FO", "Code du bureau DMV"), unsafe_allow_html=True)
-    office_display = st.selectbox("", options=list(office_codes.keys()))
+    ln = st.text_input("Nom de famille (LN)", value="Harms")
+    fn = st.text_input("Prénom (FN)", value="Rosa")
+    dob = st.date_input("Date de naissance (DOB)", value=date(1990, 12, 31), min_value=min_dob_allowed, max_value=max_dob_allowed)
+    iss = st.date_input("Date d'émission (ISS)", value=date(2015, 9, 30), max_value=max_iss_allowed)
+    office_display = st.selectbox("Code du bureau DMV", options=list(office_codes.keys()))
 
 with col2:
-    st.markdown(label_with_tooltip("SEX", "Sexe (SEX)"), unsafe_allow_html=True)
-    sex = st.selectbox("", options=["F", "M", "X"], index=0)
-
-    st.markdown(label_with_tooltip("HGT", "Taille (HGT)"), unsafe_allow_html=True)
-    hgt = st.text_input("", value="5'-08''", placeholder="Ex: 5'-08''")
-
-    st.markdown(label_with_tooltip("WGT", "Poids (WGT)"), unsafe_allow_html=True)
-    wgt = st.text_input("", value="175 lb", placeholder="Ex: 175 lb")
-
-    st.markdown(label_with_tooltip("HAIR", "Cheveux (HAIR)"), unsafe_allow_html=True)
-    hair = st.text_input("", value="BRN", placeholder="Ex: BRN")
-
-    st.markdown(label_with_tooltip("EYES", "Yeux (EYES)"), unsafe_allow_html=True)
-    eyes = st.text_input("", value="BRO", placeholder="Ex: BRO")
-
-    st.markdown(label_with_tooltip("CLASS", "Classe (CLASS)"), unsafe_allow_html=True)
-    pclass = st.text_input("", value="C", placeholder="Ex: C")
-
-    st.markdown(label_with_tooltip("RSTR", "Restrictions (RSTR)"), unsafe_allow_html=True)
-    rstr = st.text_input("", value="NONE", placeholder="Ex: NONE")
-
-    st.markdown(label_with_tooltip("END", "Endorsements (END)"), unsafe_allow_html=True)
-    end = st.text_input("", value="", placeholder="Ex: MOTORCYCLE")
+    sex = st.selectbox("Sexe (SEX)", options=["F", "M", "X"], index=0)
+    hgt = st.text_input("Taille (HGT)", value="5'-08''")
+    wgt = st.text_input("Poids (WGT)", value="175 lb")
+    hair = st.text_input("Cheveux (HAIR)", value="BRN")
+    eyes = st.text_input("Yeux (EYES)", value="BRO")
+    pclass = st.text_input("Classe (CLASS)", value="C")
+    rstr = st.text_input("Restrictions (RSTR)", value="NONE")
+    end = st.text_input("Endorsements (END)", value="")
 
 # ---------- Calcul ----------
 if st.button("Calculer"):
     errors = []
 
-    # Champs obligatoires
+    # Basic validations
     if not ln.strip():
         errors.append("Le nom de famille (LN) est obligatoire.")
     if not fn.strip():
@@ -208,58 +230,41 @@ if st.button("Calculer"):
     if not isinstance(iss, date):
         errors.append("Date d'émission invalide.")
 
-    # DOB <= today - 16 ans
     if isinstance(dob, date) and dob > max_dob_allowed:
-        errors.append(f"La date de naissance doit être au plus le {max_dob_allowed.isoformat()} (âge ≥ 16 ans).")
-
-    # ISS < today
+        errors.append(f"DOB invalide : doit être au plus le {max_dob_allowed.isoformat()} (âge ≥ 16 ans).")
     if isinstance(iss, date) and iss >= today:
-        errors.append("La date d'émission doit être antérieure à aujourd'hui.")
-
-    # ISS > DOB
+        errors.append("ISS invalide : doit être antérieure à aujourd'hui.")
     if isinstance(dob, date) and isinstance(iss, date) and iss <= dob:
-        errors.append("La date d'émission doit être postérieure à la date de naissance.")
+        errors.append("ISS invalide : doit être postérieure à DOB.")
 
-    # Calcul EXP (anniversaire + 5 ans)
     exp = None
     if isinstance(dob, date) and isinstance(iss, date):
         exp = calc_expiration(dob, iss)
         if exp <= today:
-            errors.append(f"La date d'expiration calculée ({exp.isoformat()}) n'est pas valide. Elle doit être strictement après {today.isoformat()}.")
+            errors.append(f"EXP invalide ({exp.isoformat()}) : doit être strictement après {today.isoformat()}.")
 
-    # Afficher erreurs si présentes
     if errors:
         for e in errors:
             st.error(e)
         st.stop()
 
-    # Génération DL
+    # Generate DL and DD components
     dl = calc_dl(ln, dob)
-
-    # Récupérer code bureau
     office_code = office_codes[office_display]
+    dd_components = calc_dd_components(iss, exp, office_code, sec_length=security_alpha_length, batch_length=batch_length)
+    # Build DD string using template (SEC uses sec_alpha)
+    dd = build_dd_from_components(dd_components, template=template)
 
-    # Générer composants DD et chaîne DD complète
-    dd_components = calc_dd_components(iss, exp, office_code, length=security_length)
-    dd = build_dd_from_components(dd_components)
-
-    # --- Vérification d'unicité (placeholder) ---
-    # Ici, tu dois vérifier dans ta base si le DD existe déjà pour éviter les collisions.
-    # Exemple (pseudo) :
-    # if db.exists({"DD": dd}):
-    #     st.error("Collision : DD déjà présent dans la base. Réessayez ou changez le FO_CODE.")
-    #     st.stop()
-    # (implémentation réelle dépend de ta base de données)
-
+    # Placeholder for uniqueness check in DB (implementation depends on your DB)
+    # if db.exists({"DD": dd}): ...
     age_at_issue = calculate_age(dob, iss)
     age_now = calculate_age(dob, today)
 
-    # Résultat final incluant la structure détaillée du DD
     result = {
         "DL": dl,
         "DD": dd,
         "DD_components": dd_components,
-        "DD_structure": "[ISS_MMDDYYYY]-[FO_CODE]-[EXP_YY]-[SEC]",
+        "DD_template_used": template,
         "EXP": exp.isoformat(),
         "ISS": iss.isoformat(),
         "LN": ln,
@@ -277,19 +282,22 @@ if st.button("Calculer"):
         "END": end,
         "OFFICE_DISPLAY": office_display,
         "OFFICE_CODE": office_code,
-        "SEC_LENGTH": security_length
+        "SEC_ALPHA_LENGTH": security_alpha_length,
+        "BATCH_LENGTH": batch_length
     }
 
     # ---------- Affichage ----------
     st.subheader("Résultats simulés")
     st.write(f"**DL :** {dl}")
-    st.write(f"**DD (complet) :** {dd}")
-    st.write(f"**Structure DD :** {result['DD_structure']}")
-    st.write("**Composants DD :**")
-    st.write(f"- ISS_MMDDYYYY : {dd_components['iss_mmddyyyy']}")
-    st.write(f"- FO_CODE : {dd_components['fo_code']}")
+    st.write(f"**DD (final) :** {dd}")
+    st.write(f"**Template utilisé :** {template}")
+    st.write("**Composants DD détaillés :**")
+    st.write(f"- ISS (MM/DD/YYYY) : {dd_components['iss_slash']}")
+    st.write(f"- FO code : {dd_components['fo_code']}")
+    st.write(f"- BATCH (numeric) : {dd_components['batch']}")
     st.write(f"- EXP_YY : {dd_components['exp_yy']}")
-    st.write(f"- SEC ({dd_components['sec_length']} chars) : {dd_components['sec']}")
+    st.write(f"- SEC (alpha) : {dd_components['sec_alpha']}")
+    st.write(f"- SEC (hex tail) : {dd_components['sec_hex']}")
     st.write(f"- SHA-256 (full) : {dd_components['hash_sha256']}")
     st.write("---")
     st.write(f"**EXP :** {exp.isoformat()}  (doit être strictement après {today.isoformat()})")
