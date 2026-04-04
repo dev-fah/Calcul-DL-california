@@ -2,25 +2,29 @@ import streamlit as st
 import html
 import re
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import hashlib
 
 # ---------------------------
-# app.py - Version finale avec contraintes de date
-# - Utilise st.date_input (calendrier) pour DOB et ISS
-# - DOB et ISS doivent être antérieurs à aujourd'hui (obligatoire)
-# - EXP est calculée (anniversaire + 5 ans) et doit être dans le futur (obligatoire)
-# - Infobulles au survol pour chaque label
+# app.py - Version finale avec contraintes strictes de date
+# - DOB et ISS doivent être antérieurs à aujourd'hui
+# - DOB doit être au moins 16 ans avant aujourd'hui (âge >= 16)
+# - ISS doit être strictement antérieure à aujourd'hui
+# - EXP (calculée) doit être strictement dans le futur (exp > today)
+# - Les sélecteurs de date utilisent le calendrier (st.date_input) et l'affichage se fait en YYYY-MM-DD
 # ---------------------------
 
 def calc_expiration(dob: date, issue_date: date) -> date:
+    """Pour conducteurs < 70 ans : expiration = anniversaire du titulaire, 5 ans après l'année d'émission."""
     exp_year = issue_date.year + 5
     try:
         return date(exp_year, dob.month, dob.day)
     except ValueError:
+        # Cas 29 février -> 28 février si non bissextile
         return date(exp_year, 2, 28)
 
 def calc_dl(last_name: str, dob: date) -> str:
+    """Génération académique déterministe d'un numéro DL : Lettre + 7 chiffres dérivés de la DOB."""
     if not last_name or not re.search(r'[A-Za-z]', last_name):
         letter = "X"
     else:
@@ -35,6 +39,7 @@ def calc_dl(last_name: str, dob: date) -> str:
     return f"{letter}{digits}"
 
 def calc_dd(issue_date: date) -> str:
+    """Génération simulée du Document Discriminator (DD) : MMDDYYYY + 6 hex chars."""
     code = issue_date.strftime("%m%d%Y")
     suffix = hashlib.md5(code.encode()).hexdigest()[:6].upper()
     return f"{code}{suffix}"
@@ -45,11 +50,23 @@ def to_json_result(result: dict) -> str:
 def calculate_age(birth_date: date, ref_date: date) -> int:
     return ref_date.year - birth_date.year - ((ref_date.month, ref_date.day) < (birth_date.month, birth_date.day))
 
+def safe_subtract_years(d: date, years: int) -> date:
+    """Soustrait des années en gérant 29 février."""
+    try:
+        return date(d.year - years, d.month, d.day)
+    except ValueError:
+        # 29 février -> 28 février
+        return date(d.year - years, 2, 28)
+
+# ---------------------------
+# Tooltips (définitions brèves)
+# ---------------------------
+
 TOOLTIPS = {
     "LN": "Nom de famille — nom de famille du titulaire.",
     "FN": "Prénom — prénom du titulaire.",
-    "DOB": "Date de naissance — format YYYY-MM-DD. Utilisée pour calculer l'âge et générer le DL simulé.",
-    "ISS": "Date d'émission — date où le permis a été délivré.",
+    "DOB": "Date de naissance — format YYYY-MM-DD. Doit être ≤ (au plus) aujourd'hui - 16 ans.",
+    "ISS": "Date d'émission — date où le permis a été délivré. Doit être antérieure à aujourd'hui.",
     "EXP": "Date d'expiration — pour <70 ans : anniversaire + 5 ans (doit être dans le futur).",
     "DL": "Driver License — initiale du nom + 7 chiffres (simulation académique).",
     "DD": "Document Discriminator — code unique simulé basé sur ISS.",
@@ -88,15 +105,22 @@ TOOLTIP_CSS = """
 </style>
 """
 
-st.set_page_config(page_title="Calcul DL California - Contraintes de date", layout="centered")
+# ---------------------------
+# Interface Streamlit
+# ---------------------------
+
+st.set_page_config(page_title="Calcul DL - Contraintes de date", layout="centered")
 st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
 st.title("Calcul DL California — contraintes de date")
-st.caption("Cliquez sur la date pour ouvrir le calendrier. DOB et ISS doivent être antérieurs à aujourd'hui ; EXP doit être dans le futur.")
-
-col1, col2 = st.columns(2)
+st.caption("Cliquez sur la date pour ouvrir le calendrier. Les formats affichés sont YYYY-MM-DD.")
 
 today = date.today()
+min_dob_allowed = safe_subtract_years(today, 120)  # limite raisonnable pour la saisie
+max_dob_allowed = safe_subtract_years(today, 16)   # DOB doit être ≤ today - 16 ans
+max_iss_allowed = today - timedelta(days=1)        # ISS doit être strictement antérieure à aujourd'hui
+
+col1, col2 = st.columns(2)
 
 with col1:
     st.markdown(label_with_tooltip("LN", "Nom de famille (LN)"), unsafe_allow_html=True)
@@ -105,18 +129,18 @@ with col1:
     st.markdown(label_with_tooltip("FN", "Prénom (FN)"), unsafe_allow_html=True)
     fn = st.text_input("", value="Rosa", placeholder="Ex: Rosa")
 
-    # DOB : date_input avec calendrier ; max_value = aujourd'hui (ne permet pas de choisir une date future)
+    # DOB : date_input avec calendrier ; max_value = today - 16 years (âge >= 16)
     st.markdown('''
     <div class="label-tooltip dob">
-      <span class="label-text" title="Date de naissance — format YYYY-MM-DD. Utilisée pour calculer l'âge et générer le DL simulé.">Date de naissance (DOB, YYYY-MM-DD)</span>
-      <span class="tooltip-text" role="tooltip">Date de naissance — format YYYY-MM-DD. Utilisée pour calculer l'âge et générer le DL simulé.</span>
+      <span class="label-text" title="Date de naissance — format YYYY-MM-DD. Doit être ≤ aujourd'hui - 16 ans.">Date de naissance (DOB, YYYY-MM-DD)</span>
+      <span class="tooltip-text" role="tooltip">Date de naissance — format YYYY-MM-DD. Doit être ≤ aujourd'hui - 16 ans.</span>
     </div>
     ''', unsafe_allow_html=True)
-    dob = st.date_input("", value=date(1990, 12, 31), max_value=today, key="dob_input")
+    dob = st.date_input("", value=date(1990, 12, 31), min_value=min_dob_allowed, max_value=max_dob_allowed, key="dob_input")
 
     st.markdown(label_with_tooltip("ISS", "Date d'émission (ISS, YYYY-MM-DD)"), unsafe_allow_html=True)
-    # ISS : date_input avec calendrier ; max_value = aujourd'hui
-    iss = st.date_input("", value=date(2015, 9, 30), max_value=today, key="iss_input")
+    # ISS : date_input avec calendrier ; max_value = today - 1 day (strictement antérieure à aujourd'hui)
+    iss = st.date_input("", value=date(2015, 9, 30), max_value=max_iss_allowed, key="iss_input")
 
 with col2:
     st.markdown(label_with_tooltip("SEX", "Sexe (SEX)"), unsafe_allow_html=True)
@@ -136,10 +160,9 @@ with col2:
 
 # Bouton calculer
 if st.button("Calculer"):
-    # Vérifications obligatoires
     errors = []
 
-    # Champs obligatoires : LN, FN, DOB, ISS
+    # Champs obligatoires
     if not ln.strip():
         errors.append("Le nom de famille (LN) est obligatoire.")
     if not fn.strip():
@@ -149,23 +172,26 @@ if st.button("Calculer"):
     if not isinstance(iss, date):
         errors.append("Date d'émission invalide.")
 
-    # DOB et ISS doivent être antérieurs à aujourd'hui
-    if isinstance(dob, date) and dob >= today:
-        errors.append("La date de naissance doit être antérieure à aujourd'hui.")
-    if isinstance(iss, date) and iss >= today:
-        errors.append("La date d'émission doit être antérieure à aujourd'hui.")
+    # DOB doit être ≤ today - 16 ans
+    if isinstance(dob, date):
+        if dob > max_dob_allowed:
+            errors.append(f"La date de naissance doit être au plus le {max_dob_allowed.isoformat()} (âge ≥ 16 ans).")
 
-    # Calcul âge au moment de l'émission
+    # ISS doit être strictement antérieure à aujourd'hui
+    if isinstance(iss, date):
+        if iss >= today:
+            errors.append("La date d'émission doit être antérieure à aujourd'hui.")
+
+    # ISS ne peut être antérieure à DOB (logique)
     if isinstance(dob, date) and isinstance(iss, date):
-        age_at_issue = calculate_age(dob, iss)
-    else:
-        age_at_issue = None
+        if iss <= dob:
+            errors.append("La date d'émission doit être postérieure à la date de naissance.")
 
-    # Calcul EXP et vérification qu'elle soit dans le futur
+    # Calcul EXP et vérification qu'elle soit strictement dans le futur
     if isinstance(dob, date) and isinstance(iss, date):
         exp = calc_expiration(dob, iss)
         if exp <= today:
-            errors.append("La date d'expiration calculée n'est pas dans le futur. Ajustez la date d'émission ou vérifiez la date de naissance.")
+            errors.append("La date d'expiration calculée n'est pas dans le futur. Vérifiez la date d'émission et la date de naissance.")
     else:
         exp = None
 
@@ -178,6 +204,7 @@ if st.button("Calculer"):
     # Si tout est OK, générer les autres champs simulés
     dl = calc_dl(ln, dob)
     dd = calc_dd(iss)
+    age_at_issue = calculate_age(dob, iss)
     age_now = calculate_age(dob, today)
 
     result = {
@@ -199,7 +226,7 @@ if st.button("Calculer"):
 
     st.subheader("Résultats simulés")
     st.write(f"**DL :** {dl}")
-    st.write(f"**EXP :** {exp.isoformat()} (doit être dans le futur)")
+    st.write(f"**EXP :** {exp.isoformat()}  (doit être strictement dans le futur)")
     st.write(f"**ISS :** {iss.isoformat()}")
     st.write(f"**DD :** {dd}")
     st.write("---")
