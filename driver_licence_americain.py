@@ -6,11 +6,12 @@ from datetime import date, datetime, timedelta
 import hashlib
 
 # ---------------------------
-# app.py - Version finale complète (prête à copier)
-# - Affiche les codes des bureaux à côté du nom dans le selectbox
-# - DD = [ISS_MMDDYYYY]-[FO_CODE]-[EXP_YY]-[SEC] (SEC = derniers 4/8 chars de SHA-256)
+# app.py - Version finale complète (DD structure explicite dans le résultat)
+# - DD = [ISS_MMDDYYYY]-[FO_CODE]-[EXP_YY]-[SEC]
+# - SEC = derniers 4 ou 8 caractères d'un SHA-256
+# - Affiche aussi les composants du DD séparément dans le résultat
 # - DOB ≤ today - 16 ans ; ISS < today ; EXP = anniversaire + 5 ans ; EXP > today
-# - Validation complète, infobulles, export JSON
+# - Prêt à copier-coller
 # ---------------------------
 
 # ---------- Fonctions utilitaires ----------
@@ -38,10 +39,13 @@ def calc_dl(last_name: str, dob: date) -> str:
     digits = (digits + "0" * 7)[:7]
     return f"{letter}{digits}"
 
-def calc_dd(issue_date: date, exp_date: date, office_code: str, length: int = 8) -> str:
+def calc_dd_components(issue_date: date, exp_date: date, office_code: str, length: int = 8) -> dict:
     """
-    DD simulé : [ISS_MMDDYYYY]-[FO_CODE]-[EXP_YY]-[SEC]
-    - SEC = derniers caractères d'un SHA-256 (length = 4 ou 8)
+    Retourne les composants du DD :
+      - iss_mmddyyyy
+      - fo_code
+      - exp_yy
+      - sec (séquence de sécurité)
     """
     if length not in (4, 8):
         raise ValueError("length must be 4 or 8")
@@ -50,7 +54,19 @@ def calc_dd(issue_date: date, exp_date: date, office_code: str, length: int = 8)
     base_str = iss_str + office_code + exp_yy
     hash_val = hashlib.sha256(base_str.encode()).hexdigest().upper()
     sec = hash_val[-length:]
-    return f"{iss_str}-{office_code}-{exp_yy}-{sec}"
+    return {
+        "iss_mmddyyyy": iss_str,
+        "fo_code": office_code,
+        "exp_yy": exp_yy,
+        "sec": sec,
+        "sec_length": length,
+        "hash_source": base_str,
+        "hash_sha256": hash_val
+    }
+
+def build_dd_from_components(components: dict) -> str:
+    """Construit la chaîne DD à partir des composants."""
+    return f"{components['iss_mmddyyyy']}-{components['fo_code']}-{components['exp_yy']}-{components['sec']}"
 
 def to_json_result(result: dict) -> str:
     return json.dumps(result, ensure_ascii=False, indent=2)
@@ -73,9 +89,7 @@ TOOLTIPS = {
     "ISS": "Date d'émission — format YYYY-MM-DD. Doit être antérieure à aujourd'hui.",
     "EXP": "Date d'expiration (calculée) — anniversaire + 5 ans ; doit être strictement après aujourd'hui.",
     "FO": "Code du bureau DMV — ex. 509 (Pasadena).",
-    "CLASS": "Classe de permis — ex. C.",
-    "RSTR": "Restrictions — ex. NONE.",
-    "END": "Endorsements — autorisations spéciales."
+    "SEC": "Séquence de sécurité extraite d'un SHA-256 (4 ou 8 derniers caractères)."
 }
 
 def label_with_tooltip(key: str, label_text: str) -> str:
@@ -110,7 +124,7 @@ st.set_page_config(page_title="Calcul DL + DD (final)", layout="centered")
 st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
 st.title("Calcul académique des champs d'un permis de conduire Californie")
-st.caption("DOB ≤ aujourd'hui - 16 ans ; ISS < aujourd'hui ; EXP = anniversaire + 5 ans ; DD = ISS+FO+EXP+SEC (SHA-256).")
+st.caption("DD structure explicite : ISS_MMDDYYYY - FO_CODE - EXP_YY - SEC (SHA-256).")
 
 today = date.today()
 min_dob_allowed = safe_subtract_years(today, 120)
@@ -219,10 +233,15 @@ if st.button("Calculer"):
             st.error(e)
         st.stop()
 
-    # Génération DL et DD
+    # Génération DL
     dl = calc_dl(ln, dob)
+
+    # Récupérer code bureau
     office_code = office_codes[office_display]
-    dd = calc_dd(iss, exp, office_code, length=security_length)
+
+    # Générer composants DD et chaîne DD complète
+    dd_components = calc_dd_components(iss, exp, office_code, length=security_length)
+    dd = build_dd_from_components(dd_components)
 
     # --- Vérification d'unicité (placeholder) ---
     # Ici, tu dois vérifier dans ta base si le DD existe déjà pour éviter les collisions.
@@ -235,9 +254,12 @@ if st.button("Calculer"):
     age_at_issue = calculate_age(dob, iss)
     age_now = calculate_age(dob, today)
 
+    # Résultat final incluant la structure détaillée du DD
     result = {
         "DL": dl,
         "DD": dd,
+        "DD_components": dd_components,
+        "DD_structure": "[ISS_MMDDYYYY]-[FO_CODE]-[EXP_YY]-[SEC]",
         "EXP": exp.isoformat(),
         "ISS": iss.isoformat(),
         "LN": ln,
@@ -261,7 +283,15 @@ if st.button("Calculer"):
     # ---------- Affichage ----------
     st.subheader("Résultats simulés")
     st.write(f"**DL :** {dl}")
-    st.write(f"**DD :** {dd}")
+    st.write(f"**DD (complet) :** {dd}")
+    st.write(f"**Structure DD :** {result['DD_structure']}")
+    st.write("**Composants DD :**")
+    st.write(f"- ISS_MMDDYYYY : {dd_components['iss_mmddyyyy']}")
+    st.write(f"- FO_CODE : {dd_components['fo_code']}")
+    st.write(f"- EXP_YY : {dd_components['exp_yy']}")
+    st.write(f"- SEC ({dd_components['sec_length']} chars) : {dd_components['sec']}")
+    st.write(f"- SHA-256 (full) : {dd_components['hash_sha256']}")
+    st.write("---")
     st.write(f"**EXP :** {exp.isoformat()}  (doit être strictement après {today.isoformat()})")
     st.write(f"**ISS :** {iss.isoformat()}")
     st.write(f"**Office :** {office_display} — code {office_code}")
