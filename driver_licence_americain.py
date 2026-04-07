@@ -1,5 +1,4 @@
-# driver_license_realistic_card.py
-# Version carte réaliste (style permis physique)
+# driver_license_real_card_fixed.py
 
 import streamlit as st
 import datetime, hashlib, random
@@ -7,7 +6,7 @@ import datetime, hashlib, random
 st.set_page_config(page_title="Permis réaliste", layout="centered")
 
 # -------------------------
-# CSS CARTE RÉALISTE
+# CSS (chargé UNE seule fois)
 # -------------------------
 st.markdown("""
 <style>
@@ -20,7 +19,6 @@ st.markdown("""
     box-shadow: 0 10px 30px rgba(0,0,0,0.15);
     margin: auto;
 }
-
 .header {
     display:flex;
     justify-content:space-between;
@@ -29,41 +27,34 @@ st.markdown("""
     font-size:14px;
     margin-bottom:10px;
 }
-
 .body {
     display:flex;
     gap:12px;
 }
-
 .photo {
     width:90px;
     height:110px;
     background:#e5e7eb;
     border-radius:8px;
 }
-
 .info {
     flex:1;
     font-size:12px;
 }
-
 .label {
     opacity:0.7;
     font-size:10px;
 }
-
 .value {
     font-weight:700;
     margin-bottom:4px;
 }
-
 .footer {
     margin-top:10px;
     display:flex;
     justify-content:space-between;
     font-size:11px;
 }
-
 .badge {
     background:white;
     color:#1e3a8a;
@@ -89,7 +80,7 @@ def rletter(r):
 # -------------------------
 # FORMULAIRE
 # -------------------------
-st.title("Générateur de permis réaliste")
+st.title("Permis réaliste")
 
 ln = st.text_input("Nom", "HARMS")
 fn = st.text_input("Prénom", "ROSA")
@@ -108,17 +99,19 @@ hair = st.text_input("Cheveux","BRN")
 cls = st.text_input("Classe","C")
 
 iss = st.date_input("Émission", datetime.date.today())
-gen = st.button("Générer la carte")
+
+generate = st.button("Générer")
 
 # -------------------------
-# CARTE
+# RENDU CARTE (IMPORTANT)
 # -------------------------
-if gen:
+if generate:
+
     r = random.Random(seed(ln,fn,dob))
     dl = rletter(r)+rdigits(r,7)
     exp = iss.replace(year=iss.year+6)
 
-    st.markdown(f"""
+    html = f"""
     <div class="card">
 
         <div class="header">
@@ -127,7 +120,6 @@ if gen:
         </div>
 
         <div class="body">
-
             <div class="photo"></div>
 
             <div class="info">
@@ -149,7 +141,6 @@ if gen:
                 <div class="label">Yeux / Cheveux</div>
                 <div class="value">{eyes} / {hair}</div>
             </div>
-
         </div>
 
         <div class="footer">
@@ -168,6 +159,8 @@ if gen:
         </div>
 
     </div>
-    """, unsafe_allow_html=True)
+    """
+
+    st.markdown(html, unsafe_allow_html=True)
 
     st.success("Carte générée")
