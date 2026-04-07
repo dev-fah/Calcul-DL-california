@@ -1,5 +1,5 @@
 # driver_licence_uiux_final.py
-# Générateur DL avec interface UI/UX moderne et complète
+# Générateur DL avec interface UI/UX moderne et compacte
 # Dépendances : streamlit, pandas, xlsxwriter
 # Installation : pip install streamlit pandas xlsxwriter
 
@@ -123,7 +123,6 @@ with st.form(key="form_main"):
     with col13: end = st.text_input("Endorsements (END)", value="")
     st.markdown("</div>", unsafe_allow_html=True)
 
-    export_format = st.selectbox("Format d'export", ["JSON", "CSV", "XLSX"])
     calculate = st.form_submit_button("⚙️ Calculer")
 
 # -------------------------
@@ -164,13 +163,13 @@ if calculate:
     st.json(result)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Export corrigé avec xlsxwriter
-    if export_format == "JSON":
-        data_bytes, mime, fname = to_json_bytes(result), "application/json", "dl_officiel.json"
-    elif export_format == "CSV":
-        data_bytes, mime, fname = to_csv_bytes(pd.DataFrame([result])), "text/csv", "dl_officiel.csv"
-    else:
-        data_bytes, mime, fname = to_excel_bytes(pd.DataFrame([result])), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "dl_officiel.xlsx"
+    # Boutons d’export directs
+    st.download_button("⬇️ Télécharger en JSON", data=to_json_bytes(result),
+                       file_name="dl_officiel.json", mime="application/json")
+    st.download_button("⬇️ Télécharger en CSV", data=to_csv_bytes(pd.DataFrame([result])),
+                       file_name="dl_officiel.csv", mime="text/csv")
+    st.download_button("⬇️ Télécharger en XLSX", data=to_excel_bytes(pd.DataFrame([result])),
+                       file_name="dl_officiel.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-    st.download_button("⬇️ Télécharger", data=data_bytes, file_name=fname, mime=mime)
     st.success("✅ Génération terminée — fichier conforme aux règles officielles.")
