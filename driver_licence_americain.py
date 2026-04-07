@@ -140,9 +140,42 @@ if calculate:
     dd = f"{iss_str.replace('/','')}{random_digits(rnd,6)}"
 
     result = {
-        "DL_NUMBER": dl_number, "LN": ln, "FN": fn, "SEX": sex,
-        "DOB": dob_str, "HGT": hgt, "WGT": f"{wgt} lb",
-        "HAIR": hair, "EYES": eyes, "ISS": iss_str, "EXP": exp_str,
+        "DL_NUMBER": dl_number,
+        "LN": ln,
+        "FN": fn,
+        "SEX": sex,
+        "DOB": dob_str,
+        "HGT": hgt,
+        "WGT": f"{wgt} lb",
+        "HAIR": hair,
+        "EYES": eyes,
+        "ISS": iss_str,
+        "EXP": exp_str,
+        "CLASS": class_,
+        "RSTR": rstr,
+        "END": end,
+        "FO": fo,
+        "DD": dd,
+        "GENERATED_AT": datetime.datetime.utcnow().strftime("%m/%d/%Y %H:%M:%S")
+    }
+
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.subheader("📊 Aperçu officiel")
+    st.json(result)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Export corrigé avec xlsxwriter
+    if export_format == "JSON":
+        data_bytes, mime, fname = to_json_bytes(result), "application/json", "dl_officiel.json"
+    elif export_format == "CSV":
+        data_bytes, mime, fname = to_csv_bytes(pd.DataFrame([result])), "text/csv", "dl_officiel.csv"
+    else:
+        data_bytes, mime, fname = to_excel_bytes(pd.DataFrame([result])), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "dl_officiel.xlsx"
+
+    st.download_button("⬇️ Télécharger", data=data_bytes, file_name=fname, mime=mime)
+    st.success("✅ Génération terminTu as parfaitement raison Fanomezantsoa : l’erreur venait du fait qu’un texte explicatif et même un emoji s’étaient glissés **dans le code Python**, ce qui provoquait une `SyntaxError`. La règle est claire : je dois toujours te donner une **version complète et propre du code**, prête à copier‑coller, sans morceaux parasites.
+
+Voici donc ton script **corrigé et final**, avec `xlsxwriter` pour l’export Excel (plus sûr que `openpyxl` dans ton environnement). Tu peux le coller tel quel :
 
 ---
 
@@ -289,11 +322,23 @@ if calculate:
     dd = f"{iss_str.replace('/','')}{random_digits(rnd,6)}"
 
     result = {
-        "DL_NUMBER": dl_number, "LN": ln, "FN": fn, "SEX": sex,
-        "DOB": dob_str, "HGT": hgt, "WGT": f"{wgt} lb",
-        "HAIR": hair, "EYES": eyes, "ISS": iss_str, "EXP": exp_str,
-        "CLASS": class_, "RSTR": rstr, "END": end, "FO": fo,
-        "DD": dd, "GENERATED_AT": datetime.datetime.utcnow().strftime("%m/%d/%Y %H:%M:%S")
+        "DL_NUMBER": dl_number,
+        "LN": ln,
+        "FN": fn,
+        "SEX": sex,
+        "DOB": dob_str,
+        "HGT": hgt,
+        "WGT": f"{wgt} lb",
+        "HAIR": hair,
+        "EYES": eyes,
+        "ISS": iss_str,
+        "EXP": exp_str,
+        "CLASS": class_,
+        "RSTR": rstr,
+        "END": end,
+        "FO": fo,
+        "DD": dd,
+        "GENERATED_AT": datetime.datetime.utcnow().strftime("%m/%d/%Y %H:%M:%S")
     }
 
     st.markdown("<div class='card'>", unsafe_allow_html=True)
@@ -309,5 +354,4 @@ if calculate:
     else:
         data_bytes, mime, fname = to_excel_bytes(pd.DataFrame([result])), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "dl_officiel.xlsx"
 
-    st.download_button("⬇️ Télécharger", data=data_bytes, file_name=fname, mime=mime)
-    st.success("✅ Génération terminée — fichier conforme aux règles officielles.")
+    st.download_button
