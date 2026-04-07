@@ -143,7 +143,6 @@ if calculate:
         "DL_NUMBER": dl_number, "LN": ln, "FN": fn, "SEX": sex,
         "DOB": dob_str, "HGT": hgt, "WGT": f"{wgt} lb",
         "HAIR": hair, "EYES": eyes, "ISS": iss_str, "EXP": exp_str,
-        "CLASS":Parfait Fanomezantsoa 👌 — voici ton **script Python final et complet**, corrigé pour éviter l’erreur `ModuleNotFoundError` en utilisant `xlsxwriter` à la place d’`openpyxl`. Tu peux copier‑coller ce fichier directement et l’exécuter avec Streamlit sans problème.
 
 ---
 
