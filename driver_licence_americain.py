@@ -1,228 +1,319 @@
-# driver_license_premium_compact_final.py
-# Générateur Permis — Version Premium Compact (Formulaire + Aperçu)
-# Dépendances : streamlit
-# Installer : pip install streamlit
-#
-# Usage : streamlit run driver_license_premium_compact_final.py
+# driver_license_premium_compact_final_v2.py
+# Générateur Permis — Version Premium Compact V2 (UI optimisée)
+# pip install streamlit
+# streamlit run driver_license_premium_compact_final_v2.py
 
 import streamlit as st
 import datetime, hashlib, random
 
-st.set_page_config(page_title="Aperçu Permis - Premium Compact", layout="wide")
+st.set_page_config(page_title="Permis Premium Compact", layout="wide")
 
 # -------------------------
-# CSS premium compact
+# CSS PREMIUM (plus net, plus compact, plus aligné)
 # -------------------------
 st.markdown("""
 <style>
 :root{
-  --bg:#f5f7fb;
+  --bg:#f6f8fc;
   --card:#ffffff;
   --muted:#6b7280;
   --text:#0f172a;
-  --accent:#1f6feb;
-  --accent-2:#7c3aed;
-  --shadow: 0 6px 18px rgba(15,23,42,0.06);
+  --accent:#2563eb;
+  --accent2:#7c3aed;
+  --border:#e5e7eb;
+  --shadow:0 4px 14px rgba(0,0,0,0.05);
   --radius:10px;
 }
-body { background:var(--bg); font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif; color:var(--text); }
 
-/* Container */
-.container { max-width:1200px; margin:12px auto; padding:6px; }
-
-/* Form layout (compact, columns side-by-side) */
-.form-row { display:flex; gap:10px; align-items:flex-start; margin-bottom:8px; }
-.form-col { background:var(--card); border-radius:var(--radius); padding:10px; box-shadow:var(--shadow); }
-.form-col.small { width:28%; min-width:220px; padding:8px; }
-.form-col.medium { width:44%; min-width:320px; padding:8px; }
-.form-col.large { flex:1; padding:8px; }
-
-/* Compact inputs: reduce vertical spacing */
-.stTextInput>div>div>input, .stNumberInput>div>div>input, .stDateInput>div>div>input, .stSelectbox>div>div>div {
-  padding:6px 8px !important;
-  height:34px !important;
-  font-size:13px !important;
+html, body {
+  background:var(--bg);
+  font-family: Inter, system-ui, sans-serif;
+  color:var(--text);
 }
 
-/* Preview card */
-.preview { background:var(--card); border-radius:var(--radius); padding:10px; box-shadow:var(--shadow); margin-top:10px; }
+/* Container */
+.container {
+  max-width:1150px;
+  margin:10px auto;
+  padding:4px;
+}
 
-/* Three columns preview */
-.preview-row { display:flex; gap:10px; align-items:flex-start; }
-.col-left { width:30%; min-width:200px; padding:8px; border-radius:8px; background:linear-gradient(135deg, rgba(31,111,235,0.04), rgba(124,58,237,0.02)); }
-.col-center { width:40%; min-width:300px; padding:8px; border-radius:8px; }
-.col-right { flex:1; padding:8px; border-radius:8px; }
+/* FORM */
+.form-row {
+  display:flex;
+  gap:8px;
+  margin-bottom:6px;
+}
 
-/* Grid inside center */
-.info-grid { display:grid; grid-template-columns:120px 1fr; gap:6px 10px; align-items:start; }
+.form-col {
+  background:var(--card);
+  border-radius:var(--radius);
+  padding:8px;
+  box-shadow:var(--shadow);
+  border:1px solid var(--border);
+}
 
-/* Typography */
-.label { font-size:11px; color:var(--muted); margin-bottom:2px; }
-.value { font-size:14px; color:var(--text); font-weight:700; }
-.sub { font-size:12px; color:var(--muted); }
+.form-col.small { width:26%; min-width:210px; }
+.form-col.medium { width:40%; min-width:300px; }
+.form-col.large { flex:1; }
 
-/* Badge */
-.badge { display:inline-block; background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#fff; padding:4px 8px; border-radius:999px; font-weight:700; font-size:12px; }
+/* Inputs ultra compacts */
+.stTextInput input,
+.stNumberInput input,
+.stDateInput input,
+.stSelectbox div[data-baseweb="select"] {
+  height:32px !important;
+  font-size:12px !important;
+  padding:4px 6px !important;
+}
 
-/* Tight spacing for preview rows */
-.row-compact { display:flex; gap:8px; align-items:center; }
+/* PREVIEW */
+.preview {
+  margin-top:8px;
+  padding:10px;
+  background:var(--card);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  border:1px solid var(--border);
+}
 
-/* Responsive */
-@media (max-width:1000px) {
-  .form-row, .preview-row { flex-direction:column; }
-  .form-col.small, .form-col.medium, .form-col.large, .col-left, .col-center, .col-right { width:100%; min-width:unset; }
-  .info-grid { grid-template-columns:1fr; }
+/* 3 colonnes strictes */
+.preview-row {
+  display:flex;
+  gap:8px;
+}
+
+/* colonnes */
+.col-left {
+  width:28%;
+  padding:8px;
+  border-radius:8px;
+  background:linear-gradient(135deg, rgba(37,99,235,0.05), rgba(124,58,237,0.03));
+}
+
+.col-center {
+  width:42%;
+  padding:8px;
+}
+
+.col-right {
+  flex:1;
+  padding:8px;
+}
+
+/* GRID identité */
+.info-grid {
+  display:grid;
+  grid-template-columns:110px 1fr;
+  gap:6px 8px;
+}
+
+/* TYPO */
+.label {
+  font-size:10px;
+  color:var(--muted);
+  margin-bottom:1px;
+}
+
+.value {
+  font-size:14px;
+  font-weight:700;
+}
+
+.sub {
+  font-size:11px;
+  color:var(--muted);
+}
+
+/* badge */
+.badge {
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  color:white;
+  padding:3px 8px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:700;
+}
+
+/* Responsive propre */
+@media (max-width: 1000px) {
+  .form-row, .preview-row {
+    flex-direction:column;
+  }
+  .form-col, .col-left, .col-center, .col-right {
+    width:100% !important;
+  }
+  .info-grid {
+    grid-template-columns:1fr;
+  }
 }
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Utilitaires
+# Utils
 # -------------------------
-def deterministic_seed(*parts: str) -> int:
-    key = "|".join([p or "" for p in parts])
-    return int(hashlib.md5(key.encode("utf-8")).hexdigest()[:8], 16)
+def seed(*x):
+    return int(hashlib.md5("|".join(map(str,x)).encode()).hexdigest()[:8],16)
 
-def random_digits(rnd: random.Random, length: int) -> str:
-    return "".join(rnd.choice("0123456789") for _ in range(length))
+def rand_digits(r,n):
+    return "".join(r.choice("0123456789") for _ in range(n))
 
-def random_letter(rnd: random.Random) -> str:
-    return rnd.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-def format_date(d: datetime.date) -> str:
-    return d.strftime("%Y-%m-%d")
-
-def format_height(feet: int, inches: int) -> str:
-    return f"{feet} ft {inches} in"
+def rand_letter(r):
+    return r.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 # -------------------------
-# Formulaire (compact, colonnes côte à côte)
+# UI
 # -------------------------
 st.markdown("<div class='container'>", unsafe_allow_html=True)
-st.title("Générateur Permis — Premium Compact")
+st.title("Permis — Premium Compact")
+
 st.markdown("<div class='form-row'>", unsafe_allow_html=True)
 
-# Colonne gauche (administratif compact)
+# LEFT
 st.markdown("<div class='form-col small'>", unsafe_allow_html=True)
-fo = st.selectbox("Bureau (Field Office)", [
-    "San Jose (654) - Silicon Valley",
-    "Fresno (210) - Central Valley",
-    "Oakland (987) - East Bay",
-    "Riverside (543) - Inland Empire",
-    "Santa Ana (876) - Orange County"
-], index=0)
-doc_id = st.text_input("Document ID", value="")
+fo = st.selectbox("Bureau", ["San Jose","Fresno","Oakland"])
+doc = st.text_input("Doc ID")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# Colonne centre (identité compacte)
+# CENTER
 st.markdown("<div class='form-col medium'>", unsafe_allow_html=True)
-col1, col2 = st.columns([1,1])
-with col1:
-    ln = st.text_input("Nom de famille", value="HARMS")
-    dob = st.date_input("Date de naissance", value=datetime.date(1995,3,15))
-with col2:
-    fn = st.text_input("Prénom", value="ROSA")
-    sex = st.selectbox("Sexe", ["M","F","X"], index=1)
-hgt_feet = st.number_input("Taille - pieds", min_value=0, max_value=8, value=5)
-hgt_inches = st.number_input("Taille - pouces", min_value=0, max_value=11, value=10)
-wgt = st.number_input("Poids (lbs)", min_value=30, max_value=500, value=160)
-hair = st.text_input("Cheveux (ex: BRN)", value="BRN")
-eyes = st.text_input("Yeux (ex: BLU)", value="BLU")
+c1,c2 = st.columns(2)
+with c1:
+    ln = st.text_input("Nom", "HARMS")
+    dob = st.date_input("Naissance", datetime.date(1995,3,15))
+with c2:
+    fn = st.text_input("Prénom", "ROSA")
+    sex = st.selectbox("Sexe", ["M","F","X"])
+
+h1 = st.number_input("Pieds",0,8,5)
+h2 = st.number_input("Pouces",0,11,10)
+w = st.number_input("Poids",30,500,160)
+hair = st.text_input("Cheveux","BRN")
+eyes = st.text_input("Yeux","BLU")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# Colonne droite (compléments compact)
+# RIGHT
 st.markdown("<div class='form-col large'>", unsafe_allow_html=True)
-class_ = st.text_input("Classe", value="C")
-rstr = st.text_input("Restrictions", value="NONE")
-end = st.text_input("Endorsements", value="")
-iss = st.date_input("Date d’émission", value=datetime.date.today())
-generate = st.button("⚙️ Générer l'aperçu")
+cls = st.text_input("Classe","C")
+rstr = st.text_input("Restrictions","NONE")
+end = st.text_input("Endorsements","")
+iss = st.date_input("Émission", datetime.date.today())
+gen = st.button("Générer")
 st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown("</div>", unsafe_allow_html=True)  # close form-row
+st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------
-# Aperçu officiel (trois colonnes côte à côte)
+# PREVIEW
 # -------------------------
-if generate:
-    rnd = random.Random(deterministic_seed(ln, fn, format_date(dob)))
-    dl_number = random_letter(rnd) + random_digits(rnd, 7)
-    exp_date = iss.replace(year=iss.year + 6)
-    generated_at = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-
-    result = {
-        "FO": fo,
-        "DOC_ID": doc_id or (format_date(iss).replace("-", "") + random_digits(rnd, 4)),
-        "LN": ln.upper(),
-        "FN": fn.upper(),
-        "SEX": sex,
-        "DOB": format_date(dob),
-        "HGT": format_height(int(hgt_feet), int(hgt_inches)),
-        "WGT": f"{int(wgt)} lb",
-        "HAIR": hair.upper()[:4],
-        "EYES": eyes.upper()[:4],
-        "ISS": format_date(iss),
-        "EXP": format_date(exp_date),
-        "CLASS": class_.upper(),
-        "RSTR": rstr.upper(),
-        "END": end.upper(),
-        "DL": dl_number,
-        "GENERATED_AT": generated_at
-    }
+if gen:
+    r = random.Random(seed(ln,fn,dob))
+    dl = rand_letter(r)+rand_digits(r,7)
+    exp = iss.replace(year=iss.year+6)
 
     st.markdown("<div class='preview'>", unsafe_allow_html=True)
-    st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
-                f"<div><h3 style='margin:0'>Aperçu officiel</h3><div class='sub'>Fiche premium compacte</div></div>"
-                f"<div class='badge'>DL #{result['DL']}</div></div>", unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>
+        <div>
+            <div class='value'>Aperçu officiel</div>
+            <div class='sub'>Version compacte premium</div>
+        </div>
+        <div class='badge'>DL {dl}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown("<div class='preview-row'>", unsafe_allow_html=True)
 
-    # Colonne gauche (administratif)
-    st.markdown("<div class='col-left'>", unsafe_allow_html=True)
-    st.markdown("<div class='label'>Bureau</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='value'>{result['FO']}</div>", unsafe_allow_html=True)
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-    st.markdown("<div class='label'>Document ID</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='sub'>{result['DOC_ID']}</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    # LEFT
+    st.markdown(f"""
+    <div class='col-left'>
+        <div class='label'>Bureau</div>
+        <div class='value'>{fo}</div>
 
-    # Colonne centre (identité, alignée sur Sexe)
-    st.markdown("<div class='col-center'>", unsafe_allow_html=True)
-    st.markdown("<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:12px;'>", unsafe_allow_html=True)
-    st.markdown(f"<div style='flex:1'><div class='label'>Nom</div><div class='value'>{result['LN']}</div>"
-                f"<div class='sub'>Prénom: {result['FN']}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='width:90px;text-align:center;'><div class='label'>Sexe</div><div class='value'>{result['SEX']}</div></div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+        <div style='height:6px'></div>
 
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-    st.markdown("<div class='info-grid'>", unsafe_allow_html=True)
-    st.markdown(f"<div><div class='label'>Né(e)</div><div class='sub'>{result['DOB']}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div><div class='label'>Taille / Poids</div><div class='value'>{result['HGT']} / {result['WGT']}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div><div class='label'>Yeux</div><div class='value'>{result['EYES']}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div><div class='label'>Cheveux</div><div class='value'>{result['HAIR']}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='grid-column:1/3;display:flex;gap:10px;margin-top:6px;'><div style='flex:1'><div class='label'>Émission</div><div class='sub'>{result['ISS']}</div></div><div style='flex:1'><div class='label'>Expiration</div><div class='sub'>{result['EXP']}</div></div></div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)  # close info-grid
-    st.markdown("</div>", unsafe_allow_html=True)  # close col-center
+        <div class='label'>Document</div>
+        <div class='sub'>{doc or rand_digits(r,8)}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Colonne droite (compléments)
-    st.markdown("<div class='col-right'>", unsafe_allow_html=True)
-    st.markdown("<div class='label'>Numéro de permis</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='value'>{result['DL']}</div>", unsafe_allow_html=True)
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-    st.markdown("<div class='label'>Classe</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='sub'>{result['CLASS']}</div>", unsafe_allow_html=True)
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-    st.markdown("<div class='label'>Restrictions</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='sub'>{result['RSTR']}</div>", unsafe_allow_html=True)
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-    st.markdown("<div class='label'>Endorsements</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='sub'>{result['END']}</div>", unsafe_allow_html=True)
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='sub'>Généré le: {result['GENERATED_AT']}</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)  # close col-right
+    # CENTER (alignement SEXE = pivot)
+    st.markdown(f"""
+    <div class='col-center'>
 
-    st.markdown("</div>", unsafe_allow_html=True)  # close preview-row
-    st.markdown("</div>", unsafe_allow_html=True)  # close preview
+      <div style='display:flex;justify-content:space-between;align-items:flex-start'>
+        <div>
+          <div class='label'>Nom</div>
+          <div class='value'>{ln}</div>
+          <div class='sub'>{fn}</div>
+        </div>
 
-    st.success("✅ Aperçu premium compact généré.")
-st.markdown("</div>", unsafe_allow_html=True)  # close container
+        <div style='width:80px;text-align:center'>
+          <div class='label'>Sexe</div>
+          <div class='value'>{sex}</div>
+        </div>
+      </div>
+
+      <div style='height:6px'></div>
+
+      <div class='info-grid'>
+        <div>
+          <div class='label'>Naissance</div>
+          <div class='sub'>{dob}</div>
+        </div>
+
+        <div>
+          <div class='label'>Taille / Poids</div>
+          <div class='value'>{h1}ft{h2} / {w}lb</div>
+        </div>
+
+        <div>
+          <div class='label'>Yeux</div>
+          <div class='value'>{eyes}</div>
+        </div>
+
+        <div>
+          <div class='label'>Cheveux</div>
+          <div class='value'>{hair}</div>
+        </div>
+
+        <div style='grid-column:1/3;display:flex;gap:8px'>
+          <div>
+            <div class='label'>Émis</div>
+            <div class='sub'>{iss}</div>
+          </div>
+          <div>
+            <div class='label'>Expire</div>
+            <div class='sub'>{exp}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # RIGHT
+    st.markdown(f"""
+    <div class='col-right'>
+        <div class='label'>Permis</div>
+        <div class='value'>{dl}</div>
+
+        <div style='height:6px'></div>
+
+        <div class='label'>Classe</div>
+        <div class='sub'>{cls}</div>
+
+        <div class='label'>Restrictions</div>
+        <div class='sub'>{rstr}</div>
+
+        <div class='label'>Endorsements</div>
+        <div class='sub'>{end}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
+    st.success("✔ Aperçu généré")
+
+st.markdown("</div>", unsafe_allow_html=True)
