@@ -97,7 +97,7 @@ st.title("Permis Californie (Full Offenses)")
 
 ln = st.text_input("Nom", "HARMS")
 fn = st.text_input("Prénom", "ROSA")
-sex = st.selectbox("Sexe", ["M","F","X"])
+sex = st.selectbox("Sexe", ["M","F"])
 dob = st.date_input("DOB", datetime.date(1995,12,31))
 
 selected = st.selectbox("Field Office", office_labels)
