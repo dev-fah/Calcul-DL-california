@@ -1,5 +1,5 @@
 # driver_licence_officiel.py
-# Générateur DL conforme aux règles officielles avec menu déroulant pour Field Office
+# Générateur DL conforme aux règles officielles avec menu déroulant Field Office (liste corrigée)
 # Dépendances : streamlit, pandas, openpyxl
 # pip install streamlit pandas openpyxl
 
@@ -61,15 +61,22 @@ with st.form(key="form_main"):
     hair = st.text_input("Cheveux (HAIR, 3 lettres)", value="BRN")
     eyes = st.text_input("Yeux (EYES, 3 lettres)", value="BLU")
 
-    # Menu déroulant pour Field Office
+    # Menu déroulant Field Office avec liste corrigée
     fo = st.selectbox(
         "Bureau (Field Office)",
         [
-            "Los Angeles (123)",
-            "San Francisco (456)",
-            "Sacramento (789)",
-            "San Diego (321)",
-            "Pasadena (509)"
+            "San Jose (654) - Silicon Valley",
+            "Fresno (210) - Central Valley",
+            "Oakland (987) - East Bay",
+            "Riverside (543) - Inland Empire",
+            "Santa Ana (876) - Orange County",
+            "Bakersfield (102) - Central Valley",
+            "Long Beach (304) - Greater Los Angeles Area",
+            "San Bernardino (607) - Inland Empire",
+            "Stockton (412) - Central Valley",
+            "Santa Barbara (205) - Central Coast",
+            "Redding (530) - Far Northern California",
+            "Eureka (707) - North Coast"
         ],
         index=0
     )
@@ -77,7 +84,6 @@ with st.form(key="form_main"):
     class_ = st.text_input("Classe (CLASS)", value="C")
     rstr = st.text_input("Restrictions (RSTR)", value="NONE")
     end = st.text_input("Endorsements (END)", value="")
-    addr = st.text_area("Adresse", value="123 MAIN ST\nLOS ANGELES CA 90001")
     export_format = st.selectbox("Format d'export", ["JSON", "CSV", "XLSX"])
     calculate = st.form_submit_button("Calculer")
 
@@ -123,7 +129,6 @@ if calculate:
         "CLASS": class_,
         "RSTR": rstr,
         "END": end,
-        "ADDR": addr,
         "FO": fo,
         "DD": dd,
         "GENERATED_AT": datetime.datetime.utcnow().strftime("%m/%d/%Y %H:%M:%S")
