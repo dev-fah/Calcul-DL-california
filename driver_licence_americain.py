@@ -1,25 +1,25 @@
-# driver_license_uiux_compact3_fixed.py
-# Aperçu UI/UX compact — 3 sections alignées (Sexe = référence)
+# driver_license_uiux_ultracompact.py
+# Aperçu UI/UX ultra-compact — 3 sections (Sexe = référence)
 # pip install streamlit pandas
 
 import streamlit as st
 import datetime, hashlib, random
 
-st.set_page_config(page_title="Aperçu Permis - Compact 3 Sections", layout="wide")
+st.set_page_config(page_title="Aperçu Permis - Ultra Compact", layout="wide")
 
-# --- CSS compact ---
+# --- CSS ultra-compact ---
 st.markdown("""
 <style>
-.card {background:#fff; border-radius:10px; padding:12px; box-shadow:0 6px 18px rgba(2,6,23,0.08);}
-.three-cols {display:flex; gap:12px;}
-.col-left {width:30%; min-width:200px; padding:10px; background:linear-gradient(135deg,#e6eefc,#f3eefe);}
-.col-center {width:40%; min-width:280px; padding:10px;}
-.col-right {flex:1; padding:10px;}
-.info-grid {display:grid; grid-template-columns:140px 1fr; gap:6px 12px;}
-.label {font-size:11px; color:#6b7280;}
-.value {font-size:14px; font-weight:700; color:#0f172a;}
-.sub {font-size:12px; color:#6b7280;}
-.badge {background:linear-gradient(90deg,#2563eb,#7c3aed); color:#fff; padding:4px 8px; border-radius:999px; font-size:12px; font-weight:700;}
+.card {background:#fff; border-radius:8px; padding:8px; box-shadow:0 4px 12px rgba(2,6,23,0.08);}
+.three-cols {display:flex; gap:8px;}
+.col-left {width:30%; min-width:180px; padding:6px; background:linear-gradient(135deg,#e6eefc,#f3eefe);}
+.col-center {width:40%; min-width:240px; padding:6px;}
+.col-right {flex:1; padding:6px;}
+.info-grid {display:grid; grid-template-columns:120px 1fr; gap:4px 8px;}
+.label {font-size:10px; color:#6b7280;}
+.value {font-size:13px; font-weight:700; color:#0f172a;}
+.sub {font-size:11px; color:#6b7280;}
+.badge {background:linear-gradient(90deg,#2563eb,#7c3aed); color:#fff; padding:3px 6px; border-radius:999px; font-size:11px; font-weight:700;}
 @media(max-width:900px){.three-cols{flex-direction:column}.info-grid{grid-template-columns:1fr}}
 </style>
 """, unsafe_allow_html=True)
@@ -32,7 +32,7 @@ def format_date_us(d): return d.strftime("%m/%d/%Y")
 def format_height(f,i): return f"{f}'-{i:02d}\""
 
 # --- Formulaire ---
-st.title("Générateur Permis — Compact 3 Sections")
+st.title("Générateur Permis — Ultra Compact")
 ln = st.text_input("Nom de famille", "HARMS")
 fn = st.text_input("Prénom", "ROSA")
 dob = st.date_input("Date de naissance", datetime.date(1995,3,15))
@@ -64,8 +64,8 @@ if submit:
     }
 
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
-                f"<div><h3>Aperçu officiel</h3><div class='sub'>Disposition compacte en trois sections</div></div>"
+    st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;'>"
+                f"<div><h4 style='margin:0'>Aperçu officiel</h4><div class='sub'>Disposition ultra-compacte</div></div>"
                 f"<div class='badge'>DL #{result['DL_NUMBER']}</div></div>", unsafe_allow_html=True)
 
     st.markdown("<div class='three-cols'>", unsafe_allow_html=True)
@@ -82,7 +82,7 @@ if submit:
     st.markdown(f"<div class='right-col'><div class='label'>Taille</div><div class='value'>{result['HGT']}</div><div class='sub'>Poids: {result['WGT']}</div></div>", unsafe_allow_html=True)
     st.markdown(f"<div class='ref-col'><div class='label'>&nbsp;</div></div>", unsafe_allow_html=True)
     st.markdown(f"<div class='right-col'><div class='label'>Yeux / Cheveux</div><div class='value'>{result['EYES']} / {result['HAIR']}</div><div class='sub'>Classe: {result['CLASS']}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='grid-column:1/-1;display:flex;gap:12px;margin-top:6px;'>"
+    st.markdown(f"<div style='grid-column:1/-1;display:flex;gap:8px;margin-top:4px;'>"
                 f"<div style='flex:1'><div class='label'>Émission</div><div class='value'>{result['ISS']}</div></div>"
                 f"<div style='flex:1'><div class='label'>Expiration</div><div class='value'>{result['EXP']}</div></div></div>", unsafe_allow_html=True)
     st.markdown("</div></div>", unsafe_allow_html=True)
@@ -94,4 +94,4 @@ if submit:
                 f"<div class='sub'>Généré le: {result['GENERATED_AT']}</div></div>", unsafe_allow_html=True)
 
     st.markdown("</div></div>", unsafe_allow_html=True)
-    st.success("✅ Aperçu compact en trois sections généré.")
+    st.success("✅ Aperçu ultra-compact en trois sections généré.")
