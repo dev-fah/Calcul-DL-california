@@ -1,7 +1,9 @@
-# driver_license_premium_compact.py
-# Générateur Permis — Version Premium Compact
+# driver_license_premium_compact_final.py
+# Générateur Permis — Version Premium Compact (Formulaire + Aperçu)
 # Dépendances : streamlit
-# pip install streamlit
+# Installer : pip install streamlit
+#
+# Usage : streamlit run driver_license_premium_compact_final.py
 
 import streamlit as st
 import datetime, hashlib, random
@@ -25,10 +27,10 @@ st.markdown("""
 }
 body { background:var(--bg); font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif; color:var(--text); }
 
-/* Card wrapper */
-.container { max-width:1200px; margin:12px auto; }
+/* Container */
+.container { max-width:1200px; margin:12px auto; padding:6px; }
 
-/* Compact form layout */
+/* Form layout (compact, columns side-by-side) */
 .form-row { display:flex; gap:10px; align-items:flex-start; margin-bottom:8px; }
 .form-col { background:var(--card); border-radius:var(--radius); padding:10px; box-shadow:var(--shadow); }
 .form-col.small { width:28%; min-width:220px; padding:8px; }
@@ -124,6 +126,8 @@ with col2:
 hgt_feet = st.number_input("Taille - pieds", min_value=0, max_value=8, value=5)
 hgt_inches = st.number_input("Taille - pouces", min_value=0, max_value=11, value=10)
 wgt = st.number_input("Poids (lbs)", min_value=30, max_value=500, value=160)
+hair = st.text_input("Cheveux (ex: BRN)", value="BRN")
+eyes = st.text_input("Yeux (ex: BLU)", value="BLU")
 st.markdown("</div>", unsafe_allow_html=True)
 
 # Colonne droite (compléments compact)
@@ -155,8 +159,8 @@ if generate:
         "DOB": format_date(dob),
         "HGT": format_height(int(hgt_feet), int(hgt_inches)),
         "WGT": f"{int(wgt)} lb",
-        "HAIR": (st.session_state.get("hair") if "hair" in st.session_state else "").upper() or "BRN",
-        "EYES": (st.session_state.get("eyes") if "eyes" in st.session_state else "").upper() or "BLU",
+        "HAIR": hair.upper()[:4],
+        "EYES": eyes.upper()[:4],
         "ISS": format_date(iss),
         "EXP": format_date(exp_date),
         "CLASS": class_.upper(),
