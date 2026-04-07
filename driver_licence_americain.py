@@ -1,5 +1,5 @@
-# driver_licence_uiux_preview_fixed.py
-# Aperçu UI/UX propre — le HTML est rendu (pas affiché en texte)
+# driver_licence_uiux_clean.py
+# Aperçu UI/UX propre — aucun code HTML affiché publiquement
 # Dépendances : streamlit, pandas
 # Installation : pip install streamlit pandas
 
@@ -8,47 +8,42 @@ import pandas as pd
 import datetime
 import hashlib
 import random
-import json
-from io import BytesIO
 
-st.set_page_config(page_title="Générateur DL Officiel", layout="wide")
+st.set_page_config(page_title="Aperçu Permis - UI/UX", layout="wide")
 
 # -------------------------
-# CSS global et carte DL
+# CSS léger pour l'aperçu
 # -------------------------
-st.markdown("""
-<style>
-:root {
-  --bg: #f6f8fb;
-  --card: #ffffff;
-  --accent1: #2563eb;
-  --accent2: #7c3aed;
-  --muted: #6b7280;
-}
-body { background: var(--bg); font-family: 'Segoe UI', Roboto, Arial, sans-serif; color:#0f172a; }
-.card { background: var(--card); border-radius:12px; padding:18px; box-shadow: 0 8px 24px rgba(15,23,42,0.06); margin-bottom:16px; }
-.dl-card {
-  width:100%; max-width:760px; margin: 0 auto; border-radius:12px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  padding:18px; box-shadow: 0 10px 30px rgba(2,6,23,0.08); display:flex; gap:18px;
-}
-.dl-left { width:42%; background: linear-gradient(135deg, rgba(37,99,235,0.06), rgba(124,58,237,0.04)); padding:12px; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
-.dl-photo { width:100%; height:160px; background:linear-gradient(90deg,#e6eefc,#f3eefe); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-weight:600; }
-.dl-right { width:58%; display:flex; flex-direction:column; gap:8px; }
-.dl-row { display:flex; justify-content:space-between; gap:8px; }
-.dl-title { font-size:14px; font-weight:700; color:var(--accent1); }
-.dl-field { font-size:13px; color:#0f172a; font-weight:600; }
-.dl-sub { font-size:12px; color:var(--muted); }
-.small { font-size:12px; color:var(--muted); }
-.meta { margin-top:8px; font-size:12px; color:var(--muted); }
-.badge { display:inline-block; padding:6px 10px; border-radius:999px; background:linear-gradient(90deg,var(--accent1),var(--accent2)); color:white; font-weight:700; font-size:13px; }
-.grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
-@media (max-width: 880px) {
-  .dl-card { flex-direction:column; }
-  .dl-left, .dl-right { width:100%; }
-}
-</style>
-""", unsafe_allow_html=True)
+st.markdown(
+    """
+    <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --accent: #2563eb;
+      --muted: #6b7280;
+      --shadow: 0 8px 24px rgba(15,23,42,0.06);
+    }
+    .page { background: var(--bg); padding: 18px 24px; }
+    .card { background: var(--card); border-radius:12px; padding:18px; box-shadow: var(--shadow); }
+    .dl-card { display:flex; gap:18px; align-items:flex-start; }
+    .dl-left { width:36%; min-width:220px; background: linear-gradient(135deg, rgba(37,99,235,0.04), rgba(124,58,237,0.02)); padding:14px; border-radius:10px; }
+    .dl-photo { width:100%; height:160px; background:linear-gradient(90deg,#e6eefc,#f3eefe); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-weight:700; }
+    .dl-meta { margin-top:12px; font-size:13px; color:#0f172a; font-weight:600; }
+    .dl-right { flex:1; display:flex; flex-direction:column; gap:10px; }
+    .row { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+    .label { font-size:12px; color:var(--muted); }
+    .value { font-size:16px; color:#0f172a; font-weight:700; }
+    .sub { font-size:13px; color:var(--muted); }
+    .badge { background: linear-gradient(90deg,#2563eb,#7c3aed); color:white; padding:6px 10px; border-radius:999px; font-weight:700; }
+    @media (max-width:880px) {
+      .dl-card { flex-direction:column; }
+      .dl-left { width:100%; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # -------------------------
 # Utilitaires
@@ -70,47 +65,42 @@ def format_height(feet: int, inches: int) -> str:
     return f"{feet}'-{inches:02d}\""
 
 # -------------------------
-# Formulaire
+# Formulaire (entrée)
 # -------------------------
-st.title("🆔 Générateur DL et Aperçu UI")
-st.caption("Remplis le formulaire puis clique sur Générer l'aperçu")
+st.title("Générateur Permis — Aperçu UI/UX")
+st.caption("Remplis les champs puis clique sur Générer pour voir l'aperçu visuel (aucun code source affiché).")
 
-with st.form(key="form_main"):
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("Informations personnelles")
-    c1, c2, c3 = st.columns([1.2,1.2,0.8])
-    with c1:
+with st.form("form"):
+    col1, col2, col3 = st.columns([1.2, 1.2, 0.8])
+    with col1:
         ln = st.text_input("Nom de famille (LN)", value="HARMS")
-        dob = st.date_input("Date de naissance (DOB)", value=datetime.date(1995,3,15))
-    with c2:
+        dob = st.date_input("Date de naissance (DOB)", value=datetime.date(1995, 3, 15))
+    with col2:
         fn = st.text_input("Prénom (FN)", value="ROSA")
-        sex = st.selectbox("Sexe (SEX)", ["M","F","X"], index=1)
-    with c3:
-        st.write("")  # espace
-    st.markdown("</div>", unsafe_allow_html=True)
+        sex = st.selectbox("Sexe (SEX)", ["M", "F", "X"], index=1)
+    with col3:
+        st.write("")  # espace visuel
+        st.write("")
+        st.write("")
 
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("Caractéristiques physiques")
-    c4, c5, c6 = st.columns(3)
-    with c4:
+    col4, col5, col6 = st.columns(3)
+    with col4:
         hgt_feet = st.number_input("Taille - pieds", min_value=0, max_value=8, value=5)
-    with c5:
+    with col5:
         hgt_inches = st.number_input("Taille - pouces", min_value=0, max_value=11, value=10)
-    with c6:
+    with col6:
         wgt = st.number_input("Poids (lbs)", min_value=50, max_value=400, value=160)
-    c7, c8 = st.columns(2)
-    with c7:
-        hair = st.text_input("Cheveux (HAIR, 3 lettres)", value="BRN")
-    with c8:
-        eyes = st.text_input("Yeux (EYES, 3 lettres)", value="BLU")
-    st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("Détails administratifs")
-    c9, c10 = st.columns(2)
-    with c9:
-        iss = st.date_input("Date d’émission (ISS)", value=datetime.date(2024,6,10))
-    with c10:
+    col7, col8 = st.columns(2)
+    with col7:
+        hair = st.text_input("Cheveux (HAIR, 3 lettres)", value="BRN")
+    with col8:
+        eyes = st.text_input("Yeux (EYES, 3 lettres)", value="BLU")
+
+    col9, col10 = st.columns(2)
+    with col9:
+        iss = st.date_input("Date d’émission (ISS)", value=datetime.date(2024, 6, 10))
+    with col10:
         fo = st.selectbox("Bureau (Field Office)", [
             "San Jose (654) - Silicon Valley",
             "Fresno (210) - Central Valley",
@@ -118,18 +108,21 @@ with st.form(key="form_main"):
             "Riverside (543) - Inland Empire",
             "Santa Ana (876) - Orange County"
         ])
-    c11, c12, c13 = st.columns(3)
-    with c11: class_ = st.text_input("Classe (CLASS)", value="C")
-    with c12: rstr = st.text_input("Restrictions (RSTR)", value="NONE")
-    with c13: end = st.text_input("Endorsements (END)", value="")
-    st.markdown("</div>", unsafe_allow_html=True)
 
-    calculate = st.form_submit_button("⚙️ Générer l'aperçu")
+    col11, col12, col13 = st.columns(3)
+    with col11:
+        class_ = st.text_input("Classe (CLASS)", value="C")
+    with col12:
+        rstr = st.text_input("Restrictions (RSTR)", value="NONE")
+    with col13:
+        end = st.text_input("Endorsements (END)", value="")
+
+    submit = st.form_submit_button("⚙️ Générer l'aperçu")
 
 # -------------------------
-# Génération et rendu propre du HTML (aucun code affiché)
+# Rendu UI/UX (aucun code affiché)
 # -------------------------
-if calculate:
+if submit:
     rnd = random.Random(deterministic_seed(ln, fn, dob.isoformat()))
     dl_number = random_letter(rnd) + random_digits(rnd, 7)
     exp_date = iss.replace(year=iss.year + 6)
@@ -141,7 +134,9 @@ if calculate:
     eyes_u = eyes.upper()[:3].ljust(3, "X")
     hgt = format_height(int(hgt_feet), int(hgt_inches))
     dd = f"{iss_str.replace('/','')}{random_digits(rnd,6)}"
+    generated_at = datetime.datetime.utcnow().strftime("%m/%d/%Y %H:%M:%S")
 
+    # Données résultat (internes, non affichées comme code)
     result = {
         "DL_NUMBER": dl_number,
         "LN": ln_u,
@@ -159,73 +154,72 @@ if calculate:
         "END": end,
         "FO": fo,
         "DD": dd,
-        "GENERATED_AT": datetime.datetime.utcnow().strftime("%m/%d/%Y %H:%M:%S")
+        "GENERATED_AT": generated_at
     }
 
-    # Construis le HTML (chaîne) — NE PAS entourer de backticks ni d'indentation qui l'échappe
-    dl_html = f"""
-    <div class="dl-card" role="region" aria-label="Aperçu permis">
-      <div class="dl-left">
-        <div class="dl-photo">Photo</div>
-        <div style="height:12px"></div>
-        <div class="small">Bureau</div>
-        <div class="dl-field">{result['FO']}</div>
-        <div style="height:8px"></div>
-        <div class="small">Document ID</div>
-        <div class="dl-sub">{result['DD']}</div>
-      </div>
-      <div class="dl-right">
-        <div class="dl-row">
-          <div>
-            <div class="dl-title">Nom</div>
-            <div class="dl-field">{result['LN']}</div>
-            <div class="dl-sub">Prénom: {result['FN']}</div>
-          </div>
-          <div style="text-align:right">
-            <div class="dl-title">Sexe</div>
-            <div class="dl-field">{result['SEX']}</div>
-            <div class="dl-sub">Né(e): {result['DOB']}</div>
-          </div>
-        </div>
-
-        <div class="dl-row" style="margin-top:8px">
-          <div>
-            <div class="dl-title">Taille</div>
-            <div class="dl-field">{result['HGT']}</div>
-            <div class="dl-sub">Poids: {result['WGT']}</div>
-          </div>
-          <div style="text-align:right">
-            <div class="dl-title">Yeux / Cheveux</div>
-            <div class="dl-field">{result['EYES']} / {result['HAIR']}</div>
-            <div class="dl-sub">Classe: {result['CLASS']}</div>
-          </div>
-        </div>
-
-        <div style="margin-top:12px" class="grid-2">
-          <div>
-            <div class="dl-sub">Date d'émission</div>
-            <div class="dl-field">{result['ISS']}</div>
-          </div>
-          <div>
-            <div class="dl-sub">Date d'expiration</div>
-            <div class="dl-field">{result['EXP']}</div>
-          </div>
-        </div>
-
-        <div class="meta">Généré le: {result['GENERATED_AT']}</div>
-      </div>
-    </div>
-    """
-
-    # IMPORTANT : render the HTML string with unsafe_allow_html=True so Streamlit interprets it
+    # Aperçu visuel construit avec composants Streamlit (pas de code source affiché)
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<div style='display:flex; justify-content:space-between; align-items:center; gap:16px;'>"
-                "<div style='flex:1'><h3 style='margin:0'>Aperçu officiel</h3><p class='small' style='margin:4px 0 0 0'>Aperçu visuel du permis généré</p></div>"
-                f"<div style='display:flex; gap:8px; align-items:center'><div class='badge'>DL #{dl_number}</div></div></div>",
-                unsafe_allow_html=True)
+    st.markdown("<div style='display:flex; justify-content:space-between; align-items:center;'>"
+                f"<div><h3 style='margin:0'>Aperçu officiel</h3><div class='sub'>Aperçu visuel du permis</div></div>"
+                f"<div class='badge'>DL #{dl_number}</div>"
+                "</div>", unsafe_allow_html=True)
 
-    # Render the card HTML (this will NOT display the HTML source)
-    st.markdown(dl_html, unsafe_allow_html=True)
+    # Carte principale (layout Streamlit)
+    container = st.container()
+    with container:
+        cols = st.columns([0.36, 0.64])
+        with cols[0]:
+            st.markdown("<div class='card dl-left'>", unsafe_allow_html=True)
+            st.markdown("<div class='dl-photo'>Photo</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='dl-meta' style='margin-top:12px'>Bureau</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='value' style='margin-top:6px'>{result['FO']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='dl-meta' style='margin-top:12px'>Document ID</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='sub' style='margin-top:6px'>{result['DD']}</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+        with cols[1]:
+            st.markdown("<div class='card dl-right'>", unsafe_allow_html=True)
+            # Ligne nom / sexe
+            st.markdown("<div class='row'>", unsafe_allow_html=True)
+            left, right = st.columns([0.7, 0.3])
+            with left:
+                st.markdown("<div class='label'>Nom</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='value'>{result['LN']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='sub'>Prénom: {result['FN']}</div>", unsafe_allow_html=True)
+            with right:
+                st.markdown("<div class='label'>Sexe</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='value' style='text-align:right'>{result['SEX']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='sub' style='text-align:right'>Né(e): {result['DOB']}</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            # Taille / Yeux-Cheveux
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+            st.markdown("<div class='row'>", unsafe_allow_html=True)
+            left2, right2 = st.columns([0.6, 0.4])
+            with left2:
+                st.markdown("<div class='label'>Taille</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='value'>{result['HGT']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='sub'>Poids: {result['WGT']}</div>", unsafe_allow_html=True)
+            with right2:
+                st.markdown("<div class='label' style='text-align:right'>Yeux / Cheveux</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='value' style='text-align:right'>{result['EYES']} / {result['HAIR']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='sub' style='text-align:right'>Classe: {result['CLASS']}</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            # Dates
+            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+            dcols = st.columns(2)
+            with dcols[0]:
+                st.markdown("<div class='label'>Date d'émission</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='value'>{result['ISS']}</div>", unsafe_allow_html=True)
+            with dcols[1]:
+                st.markdown("<div class='label'>Date d'expiration</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='value'>{result['EXP']}</div>", unsafe_allow_html=True)
+
+            # Meta
+            st.markdown(f"<div class='meta'>Généré le: {result['GENERATED_AT']}</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.success("✅ Génération terminée — aperçu affiché.")
+    # Message final — pas de code source affiché, aperçu uniquement
+    st.success("✅ Aperçu affiché — le code source n'est pas visible publiquement.")
