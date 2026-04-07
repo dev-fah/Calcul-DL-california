@@ -1,5 +1,5 @@
-# driver_licence_uiux_no_downloads.py
-# Générateur DL avec aperçu UI/UX visuel
+# driver_licence_uiux_preview_fixed.py
+# Aperçu UI/UX propre — le HTML est rendu (pas affiché en texte)
 # Dépendances : streamlit, pandas
 # Installation : pip install streamlit pandas
 
@@ -24,10 +24,9 @@ st.markdown("""
   --accent1: #2563eb;
   --accent2: #7c3aed;
   --muted: #6b7280;
-  --success: #10b981;
 }
 body { background: var(--bg); font-family: 'Segoe UI', Roboto, Arial, sans-serif; color:#0f172a; }
-.card { background: var(--card); border-radius:12px; padding:18px; box-shadow: 0 8px 24px rgba(15,23,42,0.06); }
+.card { background: var(--card); border-radius:12px; padding:18px; box-shadow: 0 8px 24px rgba(15,23,42,0.06); margin-bottom:16px; }
 .dl-card {
   width:100%; max-width:760px; margin: 0 auto; border-radius:12px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
@@ -71,10 +70,10 @@ def format_height(feet: int, inches: int) -> str:
     return f"{feet}'-{inches:02d}\""
 
 # -------------------------
-# Interface principale
+# Formulaire
 # -------------------------
-st.title("🆔 Générateur DL et DD")
-st.caption("Formulaire compact — aperçu visuel type permis de conduire")
+st.title("🆔 Générateur DL et Aperçu UI")
+st.caption("Remplis le formulaire puis clique sur Générer l'aperçu")
 
 with st.form(key="form_main"):
     st.markdown("<div class='card'>", unsafe_allow_html=True)
@@ -88,8 +87,6 @@ with st.form(key="form_main"):
         sex = st.selectbox("Sexe (SEX)", ["M","F","X"], index=1)
     with c3:
         st.write("")  # espace
-        st.write("")
-        st.write("")
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='card'>", unsafe_allow_html=True)
@@ -130,7 +127,7 @@ with st.form(key="form_main"):
     calculate = st.form_submit_button("⚙️ Générer l'aperçu")
 
 # -------------------------
-# Génération et aperçu UI
+# Génération et rendu propre du HTML (aucun code affiché)
 # -------------------------
 if calculate:
     rnd = random.Random(deterministic_seed(ln, fn, dob.isoformat()))
@@ -165,14 +162,7 @@ if calculate:
         "GENERATED_AT": datetime.datetime.utcnow().strftime("%m/%d/%Y %H:%M:%S")
     }
 
-    # Aperçu visuel UI/UX (carte permis)
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<div style='display:flex; justify-content:space-between; align-items:center; gap:16px;'>"
-                "<div style='flex:1'><h3 style='margin:0'>Aperçu officiel</h3><p class='small' style='margin:4px 0 0 0'>Aperçu visuel du permis généré</p></div>"
-                "<div style='display:flex; gap:8px; align-items:center'>"
-                f"<div class='badge'>DL #{dl_number}</div>"
-                "</div></div>", unsafe_allow_html=True)
-
+    # Construis le HTML (chaîne) — NE PAS entourer de backticks ni d'indentation qui l'échappe
     dl_html = f"""
     <div class="dl-card" role="region" aria-label="Aperçu permis">
       <div class="dl-left">
@@ -226,8 +216,16 @@ if calculate:
       </div>
     </div>
     """
+
+    # IMPORTANT : render the HTML string with unsafe_allow_html=True so Streamlit interprets it
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.markdown("<div style='display:flex; justify-content:space-between; align-items:center; gap:16px;'>"
+                "<div style='flex:1'><h3 style='margin:0'>Aperçu officiel</h3><p class='small' style='margin:4px 0 0 0'>Aperçu visuel du permis généré</p></div>"
+                f"<div style='display:flex; gap:8px; align-items:center'><div class='badge'>DL #{dl_number}</div></div></div>",
+                unsafe_allow_html=True)
+
+    # Render the card HTML (this will NOT display the HTML source)
     st.markdown(dl_html, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Aucun bouton de téléchargement affiché — aperçu uniquement
     st.success("✅ Génération terminée — aperçu affiché.")
