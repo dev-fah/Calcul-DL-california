@@ -1,69 +1,10 @@
-# driver_license_real_card_fixed.py
+# driver_license_real_card_WORKING.py
 
 import streamlit as st
+import streamlit.components.v1 as components
 import datetime, hashlib, random
 
 st.set_page_config(page_title="Permis réaliste", layout="centered")
-
-# -------------------------
-# CSS (chargé UNE seule fois)
-# -------------------------
-st.markdown("""
-<style>
-.card {
-    width: 420px;
-    border-radius: 14px;
-    padding: 16px;
-    background: linear-gradient(135deg,#1e3a8a,#2563eb);
-    color: white;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-    margin: auto;
-}
-.header {
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    font-weight:700;
-    font-size:14px;
-    margin-bottom:10px;
-}
-.body {
-    display:flex;
-    gap:12px;
-}
-.photo {
-    width:90px;
-    height:110px;
-    background:#e5e7eb;
-    border-radius:8px;
-}
-.info {
-    flex:1;
-    font-size:12px;
-}
-.label {
-    opacity:0.7;
-    font-size:10px;
-}
-.value {
-    font-weight:700;
-    margin-bottom:4px;
-}
-.footer {
-    margin-top:10px;
-    display:flex;
-    justify-content:space-between;
-    font-size:11px;
-}
-.badge {
-    background:white;
-    color:#1e3a8a;
-    padding:2px 6px;
-    border-radius:6px;
-    font-weight:700;
-}
-</style>
-""", unsafe_allow_html=True)
 
 # -------------------------
 # UTILS
@@ -103,7 +44,7 @@ iss = st.date_input("Émission", datetime.date.today())
 generate = st.button("Générer")
 
 # -------------------------
-# RENDU CARTE (IMPORTANT)
+# CARTE HTML (RENDU RÉEL)
 # -------------------------
 if generate:
 
@@ -112,55 +53,112 @@ if generate:
     exp = iss.replace(year=iss.year+6)
 
     html = f"""
-    <div class="card">
+    <html>
+    <head>
+    <style>
+    body {{
+        margin:0;
+        font-family:Arial;
+    }}
+    .card {{
+        width:420px;
+        border-radius:14px;
+        padding:16px;
+        background: linear-gradient(135deg,#1e3a8a,#2563eb);
+        color:white;
+        box-shadow:0 10px 30px rgba(0,0,0,0.2);
+    }}
+    .header {{
+        display:flex;
+        justify-content:space-between;
+        font-weight:700;
+        margin-bottom:10px;
+    }}
+    .body {{
+        display:flex;
+        gap:10px;
+    }}
+    .photo {{
+        width:90px;
+        height:110px;
+        background:#ddd;
+        border-radius:8px;
+    }}
+    .label {{
+        font-size:10px;
+        opacity:0.7;
+    }}
+    .value {{
+        font-weight:700;
+        margin-bottom:4px;
+    }}
+    .footer {{
+        display:flex;
+        justify-content:space-between;
+        margin-top:10px;
+        font-size:11px;
+    }}
+    .badge {{
+        background:white;
+        color:#1e3a8a;
+        padding:2px 6px;
+        border-radius:6px;
+    }}
+    </style>
+    </head>
 
-        <div class="header">
-            <div>DRIVER LICENSE</div>
-            <div class="badge">{dl}</div>
+    <body>
+        <div class="card">
+
+            <div class="header">
+                <div>DRIVER LICENSE</div>
+                <div class="badge">{dl}</div>
+            </div>
+
+            <div class="body">
+                <div class="photo"></div>
+
+                <div>
+                    <div class="label">Nom</div>
+                    <div class="value">{ln}</div>
+
+                    <div class="label">Prénom</div>
+                    <div class="value">{fn}</div>
+
+                    <div class="label">Sexe</div>
+                    <div class="value">{sex}</div>
+
+                    <div class="label">Naissance</div>
+                    <div class="value">{dob}</div>
+
+                    <div class="label">Taille / Poids</div>
+                    <div class="value">{h1}ft{h2} / {w}lb</div>
+
+                    <div class="label">Yeux / Cheveux</div>
+                    <div class="value">{eyes} / {hair}</div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <div>
+                    <div class="label">Émis</div>
+                    <div>{iss}</div>
+                </div>
+                <div>
+                    <div class="label">Expire</div>
+                    <div>{exp}</div>
+                </div>
+                <div>
+                    <div class="label">Classe</div>
+                    <div>{cls}</div>
+                </div>
+            </div>
+
         </div>
-
-        <div class="body">
-            <div class="photo"></div>
-
-            <div class="info">
-                <div class="label">Nom</div>
-                <div class="value">{ln}</div>
-
-                <div class="label">Prénom</div>
-                <div class="value">{fn}</div>
-
-                <div class="label">Sexe</div>
-                <div class="value">{sex}</div>
-
-                <div class="label">Naissance</div>
-                <div class="value">{dob}</div>
-
-                <div class="label">Taille / Poids</div>
-                <div class="value">{h1}ft{h2} / {w}lb</div>
-
-                <div class="label">Yeux / Cheveux</div>
-                <div class="value">{eyes} / {hair}</div>
-            </div>
-        </div>
-
-        <div class="footer">
-            <div>
-                <div class="label">Émis</div>
-                <div>{iss}</div>
-            </div>
-            <div>
-                <div class="label">Expire</div>
-                <div>{exp}</div>
-            </div>
-            <div>
-                <div class="label">Classe</div>
-                <div>{cls}</div>
-            </div>
-        </div>
-
-    </div>
+    </body>
+    </html>
     """
 
-    st.markdown(html, unsafe_allow_html=True)
+    components.html(html, height=260)
 
     st.success("Carte générée")
