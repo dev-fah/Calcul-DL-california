@@ -1,4 +1,4 @@
-# driver_license_final.py
+# driver_license_final_fixed.py
 
 import streamlit as st
 import datetime, random, hashlib
@@ -206,4 +206,20 @@ if generate:
                 <div class="value">{office_choice}</div>
                 <div class="label">DD</div>
                 <div class="value">{dd}</div>
-                <div class="label">ISS / EXP</
+                <div class="label">ISS</div>
+                <div class="value">{iss.strftime('%m/%d/%Y')}</div>
+                <div class="label">EXP</div>
+                <div class="value">{exp.strftime('%m/%d/%Y')}</div>
+                <div class="label">Classe</div>
+                <div class="value">{cls}</div>
+                <div class="label">Restrictions</div>
+                <div class="value">{rstr}</div>
+                <div class="label">Endorsements</div>
+                <div class="value">{endorse}</div>
+                <div class="label">Yeux / Cheveux / Taille / Poids</div>
+                <div class="value">{eyes} / {hair} / {h1}'{h2}'' / {w} lb</div>
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
