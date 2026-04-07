@@ -1,12 +1,12 @@
-# driver_license_final.py
+# driver_license_complete.py
 
 import streamlit as st
 import datetime, hashlib, random
 
-st.set_page_config(page_title="Permis réaliste CA", layout="centered")
+st.set_page_config(page_title="Permis CA complet", layout="centered")
 
 # -------------------------
-# CSS (pour la carte)
+# CSS pour la carte
 # -------------------------
 st.markdown("""
 <style>
@@ -66,7 +66,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------
-# UTILS
+# Utils
 # -------------------------
 def seed(*x):
     return int(hashlib.md5("|".join(map(str,x)).encode()).hexdigest()[:8],16)
@@ -81,7 +81,7 @@ def next_sequence(r):
     return str(r.randint(10,99))
 
 # -------------------------
-# Bureaux Field Office
+# Bureaux Field Office complets
 # -------------------------
 offices = {
     "Baie de San Francisco — Corte Madera (525)": 525,
@@ -102,18 +102,57 @@ offices = {
     "Baie de San Francisco — San Mateo (594)": 594,
     "Baie de San Francisco — Santa Clara (632)": 632,
     "Baie de San Francisco — Vallejo (538)": 538,
-    # Ajouter les autres bureaux selon la liste complète si nécessaire
+    "Grand Los Angeles — Arleta (628)": 628,
+    "Grand Los Angeles — Bellflower (610)": 610,
+    "Grand Los Angeles — Culver City (514)": 514,
+    "Grand Los Angeles — Glendale (540)": 540,
+    "Grand Los Angeles — Hollywood (633)": 633,
+    "Grand Los Angeles — Inglewood (544)": 544,
+    "Grand Los Angeles — Long Beach (507)": 507,
+    "Grand Los Angeles — Los Angeles (Hope St) (502)": 502,
+    "Grand Los Angeles — Montebello (531)": 531,
+    "Grand Los Angeles — Pasadena (510)": 510,
+    "Grand Los Angeles — Santa Monica (548)": 548,
+    "Grand Los Angeles — Torrance (592)": 592,
+    "Grand Los Angeles — West Covina (591)": 591,
+    "Orange County / Sud — Costa Mesa (627)": 627,
+    "Orange County / Sud — Fullerton (547)": 547,
+    "Orange County / Sud — Laguna Hills (642)": 642,
+    "Orange County / Sud — Santa Ana (529)": 529,
+    "Orange County / Sud — San Clemente (652)": 652,
+    "Orange County / Sud — Westminster (623)": 623,
+    "San Diego & Environs — Chula Vista (609)": 609,
+    "San Diego & Environs — El Cajon (549)": 549,
+    "San Diego & Environs — Oceanside (593)": 593,
+    "San Diego & Environs — San Diego (Clairemont) (618)": 618,
+    "San Diego & Environs — San Diego (Normal St) (504)": 504,
+    "San Diego & Environs — San Marcos (637)": 637,
+    "San Diego & Environs — San Ysidro (649)": 649,
+    "Sacramento / Nord — Auburn (533)": 533,
+    "Sacramento / Nord — Chico (534)": 534,
+    "Sacramento / Nord — Eureka (522)": 522,
+    "Sacramento / Nord — Redding (550)": 550,
+    "Sacramento / Nord — Roseville (635)": 635,
+    "Sacramento / Nord — Sacramento (Broadway) (500)": 500,
+    "Sacramento / Nord — Sacramento (South) (603)": 603,
+    "Sacramento / Nord — Woodland (535)": 535,
+    "Vallée Centrale — Bakersfield (511)": 511,
+    "Vallée Centrale — Fresno (505)": 505,
+    "Vallée Centrale — Lodi (595)": 595,
+    "Vallée Centrale — Modesto (536)": 536,
+    "Vallée Centrale — Stockton (517)": 517,
+    "Vallée Centrale — Visalia (519)": 519,
 }
 
 # -------------------------
 # FORMULAIRE
 # -------------------------
-st.title("Générateur de permis de conduire CA")
+st.title("Générateur de permis CA - Tous bureaux")
 
 ln = st.text_input("Nom de famille", "HARMS")
 fn = st.text_input("Prénom", "ROSA")
-sex = st.selectbox("Sexe", ["M","F","X"])
-dob = st.date_input("Date de naissance", datetime.date(1995,3,15))
+sex = st.selectbox("Sexe", ["M","F"])
+dob = st.date_input("Date de naissance", datetime.date(1990,1,1))
 
 col1, col2 = st.columns(2)
 with col1:
@@ -121,7 +160,7 @@ with col1:
     w = st.number_input("Poids (lb)",30,500,160)
 with col2:
     h2 = st.number_input("Pouces",0,11,10)
-    eyes = st.text_input("Yeux","BLU")
+    eyes = st.text_input("Yeux","BRN")
 hair = st.text_input("Cheveux","BRN")
 cls = st.text_input("Classe","C")
 rstr = st.text_input("Restrictions","NONE")
@@ -133,13 +172,12 @@ office_choice = st.selectbox("Field Office", list(offices.keys()))
 generate = st.button("Générer la carte")
 
 # -------------------------
-# RENDU CARTE
+# GÉNÉRATION DE LA CARTE
 # -------------------------
 if generate:
     r = random.Random(seed(ln,fn,dob))
     dl = rletter(r, ln[0]) + rdigits(r,7)
     
-    # Date d'expiration : 5 ans après ISS, mais le jour de naissance
     exp_year = iss.year + 5
     exp = datetime.date(exp_year, dob.month, dob.day)
     
@@ -169,18 +207,4 @@ if generate:
                 <div class="label">DD</div>
                 <div class="value">{dd}</div>
                 <div class="label">ISS / EXP</div>
-                <div class="value">{iss.strftime('%m/%d/%Y')} / {exp.strftime('%m/%d/%Y')}</div>
-                <div class="label">Classe</div>
-                <div class="value">{cls}</div>
-                <div class="label">Restrictions</div>
-                <div class="value">{rstr}</div>
-                <div class="label">Endorsements</div>
-                <div class="value">{endorse}</div>
-                <div class="label">Yeux / Cheveux / Taille / Poids</div>
-                <div class="value">{eyes} / {hair} / {h1}'-{h2}'' / {w} lb</div>
-            </div>
-        </div>
-    </div>
-    """
-    st.markdown(html, unsafe_allow_html=True)
-    st.success("Carte générée !")
+                <div class="value">{iss.strftime('%
