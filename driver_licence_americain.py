@@ -1,8 +1,12 @@
-# driver_license_final_fixed.py
+# driver_license_final_full.py
 
 import streamlit as st
-import datetime, random, hashlib
+import datetime, random, hashlib, re
+from datetime import datetime as dt
 
+# ==========================
+# Page Streamlit
+# ==========================
 st.set_page_config(page_title="Permis CA", layout="centered")
 
 # -------------------------
@@ -65,9 +69,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------
+# ==========================
 # Utilitaires
-# -------------------------
+# ==========================
 def seed(*x):
     return int(hashlib.md5("|".join(map(str,x)).encode()).hexdigest()[:8],16)
 
@@ -80,9 +84,9 @@ def rletter(r, initial):
 def next_sequence(r):
     return str(r.randint(10,99))
 
-# -------------------------
+# ==========================
 # Bureaux Field Office complets
-# -------------------------
+# ==========================
 offices = {
     "Baie de San Francisco — Corte Madera (525)": 525,
     "Baie de San Francisco — Daly City (599)": 599,
@@ -144,9 +148,69 @@ offices = {
     "Vallée Centrale — Visalia (519)": 519
 }
 
-# -------------------------
-# FORMULAIRE
-# -------------------------
+# ==========================
+# Module d'analyse AAMVA / PF417
+# ==========================
+def analyseur_permis_californie(donnees_brutes):
+    champs_aamva = {
+        "DAQ": "Numéro de Permis",
+        "DCS": "Nom de Famille",
+        "DCT": "Prénom",
+        "DAG": "Adresse complète",
+        "DAI": "Ville",
+        "DAJ": "État",
+        "DAK": "Code Postal",
+        "DBB": "Date de Naissance (DOB)",
+        "DBA": "Date d'Expiration (EXP)",
+        "DBD": "Date d'Émission (ISS)",
+        "DBC": "Sexe",
+        "DAU": "Taille (inches)",
+        "DAY": "Yeux",
+        "DAZ": "Cheveux",
+        "DAW": "Poids (lb)"
+    }
+
+    resultats = {}
+    maintenant = dt.now()
+
+    for code, label in champs_aamva.items():
+        pattern = f"{code}(.*?)(?=[D][A-Z][A-Z]|$)"
+        match = re.search(pattern, donnees_brutes)
+        resultats[label] = match.group(1).strip() if match else "NON_DETECTE"
+
+    # Validation EXP
+    date_exp_str = resultats.get("Date d'Expiration (EXP)","")
+    try:
+        date_exp_obj = dt.strptime(date_exp_str, "%m%d%Y")
+        resultats["STATUT_VALIDITE"] = "🟢 VALIDE" if date_exp_obj >= maintenant else f"🔴 EXPIRE ({date_exp_obj.strftime('%d/%m/%Y')})"
+    except:
+        resultats["STATUT_VALIDITE"] = "⚠️ ERREUR_FORMAT_DATE"
+
+    # DOB
+    dob_str = resultats.get("Date de Naissance (DOB)","")
+    try:
+        dob_obj = dt.strptime(dob_str, "%m%d%Y")
+        resultats["DOB_FORMAT"] = dob_obj.strftime("%d/%m/%Y")
+    except:
+        resultats["DOB_FORMAT"] = "⚠️ ERREUR_FORMAT_DATE"
+
+    # ISS
+    iss_str = resultats.get("Date d'Émission (ISS)","")
+    try:
+        iss_obj = dt.strptime(iss_str, "%m%d%Y")
+        resultats["ISS_FORMAT"] = iss_obj.strftime("%d/%m/%Y")
+    except:
+        resultats["ISS_FORMAT"] = "⚠️ ERREUR_FORMAT_DATE"
+
+    # Vérification DL Californien
+    num_dl = resultats.get("Numéro de Permis","")
+    resultats["VERIFICATION_DL"] = "✅ Format Californien Conforme" if re.match(r"^[A-Z][0-9]{7}$", num_dl) else "❌ Format Invalide"
+
+    return resultats
+
+# ==========================
+# Formulaire Streamlit
+# ==========================
 st.title("Générateur officiel de permis CA")
 
 ln = st.text_input("Nom de famille", "HARMS")
@@ -166,25 +230,29 @@ cls = st.text_input("Classe","C")
 rstr = st.text_input("Restrictions","NONE")
 endorse = st.text_input("Endorsements","NONE")
 iss = st.date_input("Date d'émission", datetime.date.today())
-
 office_choice = st.selectbox("Field Office", list(offices.keys()))
-
 generate = st.button("Générer la carte")
 
-# -------------------------
+# ==========================
 # GÉNÉRATION DE LA CARTE
-# -------------------------
+# ==========================
 if generate:
     r = random.Random(seed(ln,fn,dob))
     dl = rletter(r, ln[0]) + rdigits(r,7)
-    
     exp_year = iss.year + 5
     exp = datetime.date(exp_year, dob.month, dob.day)
-    
     office_code = offices[office_choice]
     seq = next_sequence(r)
     dd = f"{iss.strftime('%m/%d/%Y')}{office_code}{seq}FD/{iss.year%100}"
-    
+
+    # Création du code PF417 simulé pour test
+    raw_input_pf417 = (
+        f"DAQ{dl}DCS{ln}DCT{fn}DAG123 MAIN STDAIANYDAJCA"
+        f"DAK12345DBB{dob.strftime('%m%d%Y')}DBA{exp.strftime('%m%d%Y')}DBD{iss.strftime('%m%d%Y')}"
+        f"DBCFDAU{h1*12+h2}DAY{eyes}DAZ{hair}DAW{w}"
+    )
+    analyse = analyseur_permis_californie(raw_input_pf417)
+
     html = f"""
     <div class="card">
         <div class="header">
@@ -218,6 +286,8 @@ if generate:
                 <div class="value">{endorse}</div>
                 <div class="label">Yeux / Cheveux / Taille / Poids</div>
                 <div class="value">{eyes} / {hair} / {h1}'{h2}'' / {w} lb</div>
+                <div class="label">STATUT VALIDITÉ / Vérification DL</div>
+                <div class="value">{analyse['STATUT_VALIDITE']} / {analyse['VERIFICATION_DL']}</div>
             </div>
         </div>
     </div>
