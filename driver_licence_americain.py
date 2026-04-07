@@ -1,5 +1,5 @@
 # driver_licence_officiel.py
-# Générateur DL conforme aux règles officielles avec menu déroulant Field Office (liste corrigée)
+# Générateur DL conforme aux règles officielles avec menu déroulant Field Office (texte en gras)
 # Dépendances : streamlit, pandas, openpyxl
 # pip install streamlit pandas openpyxl
 
@@ -61,25 +61,23 @@ with st.form(key="form_main"):
     hair = st.text_input("Cheveux (HAIR, 3 lettres)", value="BRN")
     eyes = st.text_input("Yeux (EYES, 3 lettres)", value="BLU")
 
-    # Menu déroulant Field Office avec liste corrigée
-    fo = st.selectbox(
-        "Bureau (Field Office)",
-        [
-            "San Jose (654) - Silicon Valley",
-            "Fresno (210) - Central Valley",
-            "Oakland (987) - East Bay",
-            "Riverside (543) - Inland Empire",
-            "Santa Ana (876) - Orange County",
-            "Bakersfield (102) - Central Valley",
-            "Long Beach (304) - Greater Los Angeles Area",
-            "San Bernardino (607) - Inland Empire",
-            "Stockton (412) - Central Valley",
-            "Santa Barbara (205) - Central Coast",
-            "Redding (530) - Far Northern California",
-            "Eureka (707) - North Coast"
-        ],
-        index=0
-    )
+    # Menu déroulant Field Office avec texte en gras
+    fo_options = [
+        "**San Jose (654) - Silicon Valley**",
+        "**Fresno (210) - Central Valley**",
+        "**Oakland (987) - East Bay**",
+        "**Riverside (543) - Inland Empire**",
+        "**Santa Ana (876) - Orange County**",
+        "**Bakersfield (102) - Central Valley**",
+        "**Long Beach (304) - Greater Los Angeles Area**",
+        "**San Bernardino (607) - Inland Empire**",
+        "**Stockton (412) - Central Valley**",
+        "**Santa Barbara (205) - Central Coast**",
+        "**Redding (530) - Far Northern California**",
+        "**Eureka (707) - North Coast**"
+    ]
+
+    fo = st.selectbox("Bureau (Field Office)", fo_options, index=0)
 
     class_ = st.text_input("Classe (CLASS)", value="C")
     rstr = st.text_input("Restrictions (RSTR)", value="NONE")
