@@ -1,5 +1,5 @@
 # driver_licence_officiel.py
-# Générateur DL conforme aux règles officielles
+# Générateur DL conforme aux règles officielles avec menu déroulant pour Field Office
 # Dépendances : streamlit, pandas, openpyxl
 # pip install streamlit pandas openpyxl
 
@@ -60,7 +60,20 @@ with st.form(key="form_main"):
     iss = st.date_input("Date d’émission (ISS)", value=datetime.date(2024, 6, 10))
     hair = st.text_input("Cheveux (HAIR, 3 lettres)", value="BRN")
     eyes = st.text_input("Yeux (EYES, 3 lettres)", value="BLU")
-    fo = st.text_input("Bureau (Field Office)", value="Los Angeles (123)")
+
+    # Menu déroulant pour Field Office
+    fo = st.selectbox(
+        "Bureau (Field Office)",
+        [
+            "Los Angeles (123)",
+            "San Francisco (456)",
+            "Sacramento (789)",
+            "San Diego (321)",
+            "Pasadena (509)"
+        ],
+        index=0
+    )
+
     class_ = st.text_input("Classe (CLASS)", value="C")
     rstr = st.text_input("Restrictions (RSTR)", value="NONE")
     end = st.text_input("Endorsements (END)", value="")
@@ -78,7 +91,7 @@ if calculate:
     dl_number = random_letter(rnd) + random_digits(rnd, 7)
 
     # Dates
-    exp_date = iss.replace(year=iss.year + 6)  # ex: validité 6 ans
+    exp_date = iss.replace(year=iss.year + 6)  # validité 6 ans
     dob_str = format_date_us(dob)
     iss_str = format_date_us(iss)
     exp_str = format_date_us(exp_date)
