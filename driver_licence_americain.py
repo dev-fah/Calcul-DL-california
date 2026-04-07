@@ -1,20 +1,18 @@
-# driver_licence_uiux_3cols_ref_sex.py
-# Aperçu UI/UX : 3 sections, alignement basé sur le bloc "Sexe"
+# driver_license_3cols_uiux.py
+# Aperçu UI/UX — 3 sections (gauche / centre / droite) — Sexe = référence d'alignement
 # Dépendances : streamlit, pandas
-# Installation : pip install streamlit pandas
+# pip install streamlit pandas
 
 import streamlit as st
 import datetime
 import hashlib
 import random
 import json
-from io import BytesIO
-import pandas as pd
 
-st.set_page_config(page_title="Aperçu Permis - 3 Sections (Sexe référence)", layout="wide")
+st.set_page_config(page_title="Aperçu Permis - 3 Sections", layout="wide")
 
 # -------------------------
-# CSS : trois colonnes + grille avec colonne de référence (Sexe)
+# CSS : trois colonnes + grille référence
 # -------------------------
 st.markdown("""
 <style>
@@ -74,10 +72,10 @@ def format_height(feet: int, inches: int) -> str:
     return f"{feet}'-{inches:02d}\""
 
 # -------------------------
-# Formulaire
+# Formulaire (modifiable)
 # -------------------------
-st.title("Générateur Permis — 3 sections (Sexe = référence)")
-st.caption("Modifie les champs puis clique sur Générer. L'alignement suit la colonne 'Sexe'.")
+st.title("Générateur Permis — 3 sections")
+st.caption("Modifie les champs puis clique sur Générer — l'aperçu s'aligne sur le bloc Sexe.")
 
 with st.form(key="form_main"):
     c1, c2, c3 = st.columns([1.2, 1.2, 0.8])
@@ -173,14 +171,13 @@ if submit:
     st.markdown(f"<div class='sub'>{result['DD']}</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Section centre : identité et référence Sexe
+    # Section centre : identité et grille alignée sur Sexe
     st.markdown("<div class='col-center'>", unsafe_allow_html=True)
     st.markdown("<div class='label'>Nom</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='value'>{result['LN']}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='sub'>Prénom: {result['FN']}</div>", unsafe_allow_html=True)
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-    # Grille alignée sur la colonne de référence (Sexe)
     st.markdown("<div class='info-grid'>", unsafe_allow_html=True)
 
     # Colonne de référence (Sexe)
@@ -197,7 +194,7 @@ if submit:
     st.markdown(f"<div class='sub'>Poids: {result['WGT']}</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Ligne suivante : placeholder reference + Yeux/Cheveux
+    # Placeholder reference row + Yeux/Cheveux
     st.markdown("<div class='ref-col'>", unsafe_allow_html=True)
     st.markdown("<div class='label'>&nbsp;</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
@@ -239,4 +236,4 @@ if submit:
     st.markdown("</div>", unsafe_allow_html=True)  # close three-cols
     st.markdown("</div>", unsafe_allow_html=True)  # close card
 
-    st.success("✅ Disposition en trois sections appliquée — alignement basé sur le bloc **Sexe**.")
+    st.success("✅ Disposition en trois sections appliquée — UI/UX alignée sur le bloc Sexe.")
