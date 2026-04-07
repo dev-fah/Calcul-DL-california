@@ -1,5 +1,5 @@
-# driver_licence_uiux_sex_reference.py
-# Aperçu UI/UX — alignement basé sur le bloc "Sexe"
+# driver_licence_uiux_three_columns.py
+# Aperçu UI/UX divisé en trois sections (gauche, centre, droite)
 # Dépendances : streamlit, pandas
 # Installation : pip install streamlit pandas
 
@@ -11,48 +11,43 @@ import json
 from io import BytesIO
 import pandas as pd
 
-st.set_page_config(page_title="Aperçu Permis - Référence Sexe", layout="wide")
+st.set_page_config(page_title="Aperçu Permis - 3 Sections", layout="wide")
 
 # -------------------------
-# CSS : grille avec colonne de référence (Sexe)
+# CSS pour 3 sections et alignement (Sexe = référence)
 # -------------------------
 st.markdown("""
 <style>
 :root{
-  --bg: #f6f8fb;
-  --card: #ffffff;
-  --accent: #2563eb;
-  --muted: #6b7280;
-  --shadow: 0 10px 30px rgba(2,6,23,0.08);
+  --bg:#f6f8fb; --card:#ffffff; --accent:#2563eb; --muted:#6b7280; --shadow:0 10px 30px rgba(2,6,23,0.08);
 }
-/* Container général */
-body { background: var(--bg); font-family: "Segoe UI", Roboto, Arial, sans-serif; color:#0f172a; }
-/* Carte */
-.card { background: var(--card); border-radius:12px; padding:18px; box-shadow: var(--shadow); margin-bottom:18px; }
-/* Wrapper de la carte permis */
-.dl-wrapper { display:flex; gap:18px; align-items:flex-start; }
-/* Colonne gauche (mini-graphic) */
-.dl-left { width:34%; min-width:220px; border-radius:10px; padding:14px; background: linear-gradient(135deg, rgba(37,99,235,0.04), rgba(124,58,237,0.02)); }
-/* Colonne droite : on utilise une grille interne alignée sur la colonne de référence */
-.dl-right { flex:1; display:block; }
-/* Grille d'info : la première colonne est la colonne de référence (Sexe) */
+body { background:var(--bg); font-family: "Segoe UI", Roboto, Arial, sans-serif; color:#0f172a; }
+.container { padding:18px; }
+.card { background:var(--card); border-radius:12px; padding:18px; box-shadow:var(--shadow); margin-bottom:18px; }
+.three-cols { display:flex; gap:18px; align-items:flex-start; }
+.col-left { width:28%; min-width:220px; border-radius:10px; padding:14px; background: linear-gradient(135deg, rgba(37,99,235,0.04), rgba(124,58,237,0.02)); }
+.col-center { width:36%; min-width:300px; border-radius:10px; padding:14px; background:transparent; }
+.col-right { flex:1; border-radius:10px; padding:14px; background:transparent; }
+
+/* Grille interne : la colonne de référence (Sexe) a une largeur fixe */
 .info-grid {
-  display: grid;
-  grid-template-columns: 160px 1fr; /* <-- 160px fixe = largeur de référence (Sexe) */
-  gap: 8px 18px;
-  align-items: start;
+  display:grid;
+  grid-template-columns: 140px 1fr; /* 140px = référence (Sexe) */
+  gap:8px 18px;
+  align-items:start;
 }
-/* Chaque cellule */
+.ref-col { display:flex; flex-direction:column; align-items:flex-start; }
+.right-col { display:flex; flex-direction:column; gap:8px; }
+
+/* Styles texte */
 .label { font-size:12px; color:var(--muted); }
 .value { font-size:16px; color:#0f172a; font-weight:800; }
 .sub { font-size:13px; color:var(--muted); }
-/* Forcer left alignment inside the reference column */
-.ref-col { display:flex; flex-direction:column; align-items:flex-start; }
-/* Right column content */
-.right-col { display:flex; flex-direction:column; gap:8px; }
-/* Small responsive tweak */
-@media (max-width:880px) {
-  .dl-wrapper { flex-direction:column; }
+.badge { background: linear-gradient(90deg,var(--accent),#7c3aed); color:white; padding:6px 10px; border-radius:999px; font-weight:800; }
+
+/* Responsive */
+@media (max-width:980px) {
+  .three-cols { flex-direction:column; }
   .info-grid { grid-template-columns: 1fr; }
 }
 </style>
@@ -80,8 +75,8 @@ def format_height(feet: int, inches: int) -> str:
 # -------------------------
 # Formulaire
 # -------------------------
-st.title("Générateur Permis — Alignement (Sexe = référence)")
-st.caption("Le bloc 'Sexe' définit la colonne de référence ; les autres sections s'alignent dessus.")
+st.title("Générateur Permis — 3 Sections")
+st.caption("Les trois sections : gauche = identification, centre = identité, droite = caractéristiques et dates.")
 
 with st.form(key="form_main"):
     c1, c2, c3 = st.columns([1.2, 1.2, 0.8])
@@ -133,7 +128,7 @@ with st.form(key="form_main"):
     submit = st.form_submit_button("⚙️ Générer l'aperçu")
 
 # -------------------------
-# Rendu aligné sur la référence
+# Rendu 3 sections
 # -------------------------
 if submit:
     rnd = random.Random(deterministic_seed(ln, fn, dob.isoformat()))
@@ -150,96 +145,97 @@ if submit:
     generated_at = datetime.datetime.utcnow().strftime("%m/%d/%Y %H:%M:%S")
 
     result = {
-        "DL_NUMBER": dl_number,
-        "LN": ln_u,
-        "FN": fn_u,
-        "SEX": sex,
-        "DOB": dob_str,
-        "HGT": hgt,
-        "WGT": f"{wgt} lb",
-        "HAIR": hair_u,
-        "EYES": eyes_u,
-        "ISS": iss_str,
-        "EXP": exp_str,
-        "CLASS": class_,
-        "RSTR": rstr,
-        "END": end,
-        "FO": fo,
-        "DD": dd,
+        "DL_NUMBER": dl_number, "LN": ln_u, "FN": fn_u, "SEX": sex, "DOB": dob_str,
+        "HGT": hgt, "WGT": f"{wgt} lb", "HAIR": hair_u, "EYES": eyes_u,
+        "ISS": iss_str, "EXP": exp_str, "CLASS": class_, "FO": fo, "DD": dd,
         "GENERATED_AT": generated_at
     }
 
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;'>"
-                f"<div><h3 style='margin:0'>Aperçu officiel</h3><div class='sub' style='margin-top:4px'>Aligné sur le bloc Sexe</div></div>"
+                f"<div><h3 style='margin:0'>Aperçu officiel</h3><div class='sub' style='margin-top:4px'>Disposition en trois sections</div></div>"
                 f"<div class='badge'>DL #{dl_number}</div></div>", unsafe_allow_html=True)
 
-    # Layout principal
-    cols = st.columns([0.34, 0.66])
-    with cols[0]:
-        st.markdown("<div class='dl-left'>", unsafe_allow_html=True)
-        st.markdown("<div class='mini-graphic'>APERÇU VISUEL</div>", unsafe_allow_html=True)
-        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-        st.markdown("<div class='label'>Bureau</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='value'>{result['FO']}</div>", unsafe_allow_html=True)
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-        st.markdown("<div class='label'>Document ID</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='sub'>{result['DD']}</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Trois sections côte à côte
+    st.markdown("<div class='three-cols'>", unsafe_allow_html=True)
 
-    with cols[1]:
-        st.markdown("<div class='dl-right'>", unsafe_allow_html=True)
+    # Section gauche : identification / mini-illustration
+    st.markdown("<div class='col-left'>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>IDENTIFICATION</div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='background:linear-gradient(90deg,#e6eefc,#f3eefe); height:120px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--muted)'>APERÇU VISUEL</div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Bureau</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='value'>{result['FO']}</div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Document ID</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>{result['DD']}</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        # Grille d'information : 1ère colonne = référence (Sexe), 2ème colonne = contenu
-        st.markdown("<div class='info-grid'>", unsafe_allow_html=True)
+    # Section centre : identité (Nom, Prénom, Sexe référence)
+    st.markdown("<div class='col-center'>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Nom</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='value'>{result['LN']}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>Prénom: {result['FN']}</div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-        # Ligne 1 : Nom (span across both columns)
-        st.markdown("<div style='grid-column: 1 / -1;'>", unsafe_allow_html=True)
-        st.markdown("<div class='label'>Nom</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='value'>{result['LN']}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='sub'>Prénom: {result['FN']}</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Grille interne alignée sur la colonne de référence (Sexe)
+    st.markdown("<div class='info-grid'>", unsafe_allow_html=True)
 
-        # Ligne 2 : Colonne de référence (Sexe) + droite vide placeholder for alignment
-        st.markdown("<div class='ref-col'>", unsafe_allow_html=True)
-        st.markdown("<div class='label'>Sexe</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='value'>{result['SEX']}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='sub'>Né(e): {result['DOB']}</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Colonne de référence (Sexe)
+    st.markdown("<div class='ref-col'>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Sexe</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='value'>{result['SEX']}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>Né(e): {result['DOB']}</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        # Ligne 2 droite : other fields aligned to the same baseline as Sexe
-        st.markdown("<div class='right-col'>", unsafe_allow_html=True)
-        st.markdown("<div class='label'>Taille</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='value'>{result['HGT']}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='sub'>Poids: {result['WGT']}</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Contenu à droite de la référence (espace pour aligner)
+    st.markdown("<div class='right-col'>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Taille</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='value'>{result['HGT']}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>Poids: {result['WGT']}</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        # Ligne 3 : Yeux/Cheveux block aligned under the reference column
-        st.markdown("<div class='ref-col'>", unsafe_allow_html=True)
-        st.markdown("<div class='label'> </div>", unsafe_allow_html=True)  # empty label to keep grid spacing
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Yeux / Cheveux ligne (référence vide + contenu)
+    st.markdown("<div class='ref-col'>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>&nbsp;</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown("<div class='right-col'>", unsafe_allow_html=True)
-        st.markdown("<div class='label'>Yeux / Cheveux</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='value'>{result['EYES']} / {result['HAIR']}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='sub'>Classe: {result['CLASS']}</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<div class='right-col'>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Yeux / Cheveux</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='value'>{result['EYES']} / {result['HAIR']}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>Classe: {result['CLASS']}</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        # Ligne 4 : Dates (span across both columns)
-        st.markdown("<div style='grid-column: 1 / -1; display:flex; gap:18px; margin-top:8px;'>", unsafe_allow_html=True)
-        st.markdown("<div style='flex:1'>", unsafe_allow_html=True)
-        st.markdown("<div class='label'>Date d'émission</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='value'>{result['ISS']}</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("<div style='flex:1'>", unsafe_allow_html=True)
-        st.markdown("<div class='label'>Date d'expiration</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='value'>{result['EXP']}</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Dates (span across both columns)
+    st.markdown("<div style='grid-column: 1 / -1; display:flex; gap:18px; margin-top:8px;'>", unsafe_allow_html=True)
+    st.markdown("<div style='flex:1'>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Date d'émission</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='value'>{result['ISS']}</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<div style='flex:1'>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Date d'expiration</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='value'>{result['EXP']}</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        # Close grid and right column
-        st.markdown("</div>", unsafe_allow_html=True)  # close info-grid
-        st.markdown(f"<div class='meta'>Généré le: {result['GENERATED_AT']}</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)  # close dl-right
+    st.markdown("</div>", unsafe_allow_html=True)  # close info-grid
+    st.markdown("</div>", unsafe_allow_html=True)  # close col-center
 
-    st.success("✅ Alignement appliqué : tous les blocs s'alignent sur la colonne de référence 'Sexe'.")
+    # Section droite : informations complémentaires / métadonnées
+    st.markdown("<div class='col-right'>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Numéro de permis</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='value'>{result['DL_NUMBER']}</div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Restrictions</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>{result['RSTR']}</div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Endorsements</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>{result['END']}</div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>Généré le: {result['GENERATED_AT']}</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)  # close three-cols
+    st.markdown("</div>", unsafe_allow_html=True)  # close card
+
+    st.success("✅ Disposition en trois sections appliquée. Les champs restent modifiables depuis le formulaire.")
