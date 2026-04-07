@@ -173,9 +173,9 @@ if calculate:
         data_bytes, mime, fname = to_excel_bytes(pd.DataFrame([result])), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "dl_officiel.xlsx"
 
     st.download_button("⬇️ Télécharger", data=data_bytes, file_name=fname, mime=mime)
-   Je comprends Fanomezantsoa — tu en as marre parce que des morceaux de texte explicatif se sont glissés **dans le code Python**, ce qui provoque encore des `SyntaxError`. La solution est de repartir sur une base **propre et complète**, sans aucun texte parasite.  
+    st.success("✅ Génération terminée — fichier conformeFanomezantsoa, je vais être très clair : tes erreurs viennent du fait que du **texte explicatif** (mes phrases de réponse) s’est retrouvé **dans ton fichier Python**. Résultat : Python lit ça comme du code et plante avec `SyntaxError` ou `IndentationError`.  
 
-Voici ton script **corrigé et final**, prêt à copier‑coller et exécuter :
+La solution est simple : repartir sur un **script propre et complet**, sans aucun texte parasite. Voici la version finale corrigée, prête à copier‑coller et exécuter :
 
 ---
 
@@ -354,5 +354,4 @@ if calculate:
     else:
         data_bytes, mime, fname = to_excel_bytes(pd.DataFrame([result])), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "dl_officiel.xlsx"
 
-    st.download_button("⬇️ Télécharger", data=data_bytes, file_name=fname, mime=mime)
-    st.success("✅ Génération terminée — fichier conforme aux règles officielles
+    st.download_button("⬇️ Télécharger", data=data_bytes, file_name=fname, mime=mime
