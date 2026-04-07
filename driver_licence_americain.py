@@ -1,5 +1,5 @@
-# driver_licence_officiel.py
-# Générateur DL conforme aux règles officielles avec menu déroulant Field Office (CSS en gras)
+# driver_licence_uiux.py
+# Générateur DL avec interface UI/UX moderne
 # Dépendances : streamlit, pandas, openpyxl
 # pip install streamlit pandas openpyxl
 
@@ -14,14 +14,27 @@ from io import BytesIO
 st.set_page_config(page_title="Générateur DL Officiel", layout="wide")
 
 # -------------------------
-# CSS pour rendre les options du menu déroulant en gras
+# CSS pour UI/UX moderne
 # -------------------------
 st.markdown("""
 <style>
-/* cibler les options du selectbox */
-div[data-baseweb="select"] span {
-    font-weight: bold !important;
+body { background: #f9fafb; font-family: 'Segoe UI', sans-serif; }
+h1, h2, h3 { font-weight: 700; color: #1e293b; }
+.card {
+    background:#fff; border-radius:12px; padding:20px;
+    box-shadow:0 6px 18px rgba(0,0,0,0.06); margin-bottom:20px;
 }
+.stButton>button {
+    background: linear-gradient(90deg,#2563eb,#7c3aed);
+    color:white; border-radius:10px; padding:10px 20px;
+    font-weight:600; box-shadow:0 6px 14px rgba(37,99,235,0.12);
+}
+.stDownloadButton>button {
+    background: linear-gradient(90deg,#06b6d4,#0ea5e9);
+    color:white; border-radius:10px; padding:10px 20px;
+    font-weight:600; box-shadow:0 6px 14px rgba(6,182,212,0.12);
+}
+div[data-baseweb="select"] span { font-weight:bold !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,24 +70,33 @@ def to_excel_bytes(df: pd.DataFrame) -> bytes:
     return buf.getvalue()
 
 # -------------------------
-# Formulaire principal
+# Interface principale
 # -------------------------
-st.title("🆔 Générateur DL et DD (Format officiel)")
+st.title("🆔 Générateur DL et DD (UI/UX Modernisé)")
+st.caption("Interface inspirée des meilleures pratiques UI/UX — claire, moderne et intuitive.")
 
 with st.form(key="form_main"):
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.subheader("👤 Informations personnelles")
     ln = st.text_input("Nom de famille (LN)", value="HARMS")
     fn = st.text_input("Prénom (FN)", value="ROSA")
     sex = st.selectbox("Sexe (SEX)", ["M", "F", "X"], index=1)
     dob = st.date_input("Date de naissance (DOB)", value=datetime.date(1995, 3, 15))
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.subheader("📏 Caractéristiques physiques")
     hgt_feet = st.number_input("Taille - pieds", min_value=0, max_value=8, value=5)
     hgt_inches = st.number_input("Taille - pouces", min_value=0, max_value=11, value=10)
-    wgt = st.number_input("Poids (WGT en lbs)", min_value=50, max_value=400, value=160)
-    iss = st.date_input("Date d’émission (ISS)", value=datetime.date(2024, 6, 10))
+    wgt = st.number_input("Poids (lbs)", min_value=50, max_value=400, value=160)
     hair = st.text_input("Cheveux (HAIR, 3 lettres)", value="BRN")
     eyes = st.text_input("Yeux (EYES, 3 lettres)", value="BLU")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    # Menu déroulant Field Office avec CSS en gras
-    fo_options = [
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.subheader("📑 Détails administratifs")
+    iss = st.date_input("Date d’émission (ISS)", value=datetime.date(2024, 6, 10))
+    fo = st.selectbox("Bureau (Field Office)", [
         "San Jose (654) - Silicon Valley",
         "Fresno (210) - Central Valley",
         "Oakland (987) - East Bay",
@@ -87,15 +109,14 @@ with st.form(key="form_main"):
         "Santa Barbara (205) - Central Coast",
         "Redding (530) - Far Northern California",
         "Eureka (707) - North Coast"
-    ]
-
-    fo = st.selectbox("Bureau (Field Office)", fo_options, index=0)
-
+    ])
     class_ = st.text_input("Classe (CLASS)", value="C")
     rstr = st.text_input("Restrictions (RSTR)", value="NONE")
     end = st.text_input("Endorsements (END)", value="")
+    st.markdown("</div>", unsafe_allow_html=True)
+
     export_format = st.selectbox("Format d'export", ["JSON", "CSV", "XLSX"])
-    calculate = st.form_submit_button("Calculer")
+    calculate = st.form_submit_button("⚙️ Calculer")
 
 # -------------------------
 # Traitement
@@ -107,7 +128,7 @@ if calculate:
     dl_number = random_letter(rnd) + random_digits(rnd, 7)
 
     # Dates
-    exp_date = iss.replace(year=iss.year + 6)  # validité 6 ans
+    exp_date = iss.replace(year=iss.year + 6)
     dob_str = format_date_us(dob)
     iss_str = format_date_us(iss)
     exp_str = format_date_us(exp_date)
@@ -121,7 +142,7 @@ if calculate:
     # Hauteur
     hgt = format_height(int(hgt_feet), int(hgt_inches))
 
-    # DD (Document Discriminator) : ISS + séquence
+    # DD (Document Discriminator)
     dd = f"{iss_str.replace('/','')}{random_digits(rnd,6)}"
 
     result = {
@@ -144,9 +165,10 @@ if calculate:
         "GENERATED_AT": datetime.datetime.utcnow().strftime("%m/%d/%Y %H:%M:%S")
     }
 
-    # Aperçu
-    st.subheader("Aperçu officiel")
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.subheader("📊 Aperçu officiel")
     st.json(result)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # Export
     if export_format == "JSON":
@@ -157,4 +179,4 @@ if calculate:
         data_bytes = to_excel_bytes(pd.DataFrame([result])); mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; fname = "dl_officiel.xlsx"
 
     st.download_button("⬇️ Télécharger", data=data_bytes, file_name=fname, mime=mime)
-    st.success("Génération terminée — fichier conforme aux règles officielles.")
+    st.success("✅ Génération terminée — fichier conforme aux règles officielles.")
