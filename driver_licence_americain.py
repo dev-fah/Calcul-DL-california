@@ -1,10 +1,10 @@
-# driver_license_barcode_data.py
+# driver_license_two_sections.py
 
 import streamlit as st
 import streamlit.components.v1 as components
 import datetime, hashlib, random
 
-st.set_page_config(page_title="Permis + Barcode Data", layout="centered")
+st.set_page_config(page_title="Permis Pro", layout="centered")
 
 # -------------------------
 # UTILS
@@ -22,9 +22,9 @@ def format_height(ft, inch):
     return f"{ft}'-{str(inch).zfill(2)}''"
 
 # -------------------------
-# FORM
+# FORMULAIRE
 # -------------------------
-st.title("Permis Californie + Données Code-Barres")
+st.title("Permis Californie (Structure Pro)")
 
 ln = st.text_input("Nom", "HARMS")
 fn = st.text_input("Prénom", "ROSA")
@@ -41,12 +41,7 @@ with col2:
 
 hair = st.text_input("Cheveux","BRN")
 
-address = st.text_input("Adresse",
-"2570 24TH STREET, SACRAMENTO, CA 95818")
-
-cls = st.text_input("Classe","C")
 rstr = st.text_input("Restrictions","NONE")
-end = st.text_input("Endorsements","NONE")
 
 iss = st.date_input("ISS", datetime.date.today())
 
@@ -66,10 +61,10 @@ if generate:
     exp = datetime.date(iss.year + 5, dob.month, dob.day)
 
     # DD
-    sequence = rdigits(r,2)
+    seq = rdigits(r,2)
     fd = random.randint(10,99)
     year_short = str(iss.year)[-2:]
-    dd = f"{format_us(iss)}503{sequence}/{fd}FD/{year_short}"
+    dd = f"{format_us(iss)}503{seq}/{fd}FD/{year_short}"
 
     # Formats
     dob_us = format_us(dob)
@@ -78,7 +73,53 @@ if generate:
     hgt = format_height(hft, hin)
 
     # -------------------------
-    # DATA BARCODE (IMPORTANT)
+    # SECTION 1 (BLEU)
+    # -------------------------
+    html = f"""
+    <html>
+    <style>
+    body {{margin:0;font-family:Arial;}}
+    .card {{
+        width:420px;
+        padding:15px;
+        border-radius:12px;
+        background:linear-gradient(135deg,#1e3a8a,#2563eb);
+        color:white;
+        font-size:12px;
+        line-height:1.6;
+    }}
+    .row {{margin-bottom:4px;}}
+    .label {{opacity:0.7;}}
+    </style>
+
+    <div class="card">
+
+        <div class="row">DL {dl}</div>
+        <div class="row">EXP {exp_us}</div>
+
+        <div class="row">LN {ln}</div>
+        <div class="row">FN {fn}</div>
+        <div class="row">DOB {dob_us}</div>
+
+        <div class="row">RSTR {rstr}</div>
+        <div class="row">SEX {sex}</div>
+
+        <div class="row">HGT {hgt}</div>
+        <div class="row">HAIR {hair}</div>
+        <div class="row">WGT {wgt} lb</div>
+        <div class="row">EYES {eyes}</div>
+
+        <div class="row">DD {dd}</div>
+        <div class="row">ISS {iss_us}</div>
+
+    </div>
+    </html>
+    """
+
+    components.html(html, height=420)
+
+    # -------------------------
+    # SECTION 2 (BARCODE DATA)
     # -------------------------
     barcode_data = f"""
 CALIFORNIA USA DRIVER LICENSE
@@ -87,53 +128,18 @@ EXP: {exp_us}
 LN: {ln}
 FN: {fn}
 DOB: {dob_us}
-ISS: {iss_us}
-DD: {dd}
-ADDRESS: {address}
-SEX: {sex}
-HAIR: {hair}
-EYES: {eyes}
-HGT: {hgt}
-WGT: {wgt} lb
-CLASS: {cls}
 RSTR: {rstr}
-END: {end}
-DONOR
+SEX: {sex}
+HGT: {hgt}
+HAIR: {hair}
+WGT: {wgt} lb
+EYES: {eyes}
+DD: {dd}
+ISS: {iss_us}
 """.strip()
 
-    # -------------------------
-    # CARTE
-    # -------------------------
-    html = f"""
-    <html>
-    <style>
-    body {{font-family:Arial;margin:0;}}
-    .card {{
-        width:420px;
-        padding:15px;
-        border-radius:12px;
-        background:#1e3a8a;
-        color:white;
-    }}
-    .value {{font-weight:bold;margin-bottom:6px;}}
-    </style>
+    st.subheader("📋 Données complètes (non modifiable)")
 
-    <div class="card">
-        <div class="value">DL {dl}</div>
-        <div class="value">{ln} {fn}</div>
-        <div class="value">DOB {dob_us}</div>
-        <div class="value">EXP {exp_us}</div>
-    </div>
-    </html>
-    """
+    st.text_area("", barcode_data, height=260, disabled=True)
 
-    components.html(html, height=200)
-
-    # -------------------------
-    # BARCODE DATA DISPLAY
-    # -------------------------
-    st.subheader("📋 Données pour Code-Barres")
-
-    st.text_area("Copier pour encoder (PDF417)", barcode_data, height=300)
-
-    st.success("Données prêtes pour génération code-barres")
+    st.success("Structure validée (section 1 + section 2)")
