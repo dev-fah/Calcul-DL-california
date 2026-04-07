@@ -62,7 +62,6 @@ if submit:
         "CLASS":class_,"FO":fo,"DD":format_date_us(iss).replace("/","")+random_digits(rnd,6),
         "RSTR":rstr,"END":end,"GENERATED_AT":datetime.datetime.utcnow().strftime("%m/%d/%Y %H:%M:%S")
     }
-
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;'>"
                 f"<div><h4 style='margin:0'>Aperçu officiel</h4><div class='sub'>Disposition compacte en trois sections</div></div>"
