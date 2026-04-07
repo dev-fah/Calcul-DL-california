@@ -1,12 +1,28 @@
-# driver_license_official_export.py
+# driver_license_dd_official.py
 
 import streamlit as st
 import streamlit.components.v1 as components
 import datetime, hashlib, random
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 import io
 
 st.set_page_config(page_title="Permis Officiel", layout="centered")
+
+# -------------------------
+# FIELD OFFICES
+# -------------------------
+offices = {
+    "San Francisco":503,
+    "Oakland (Claremont)":501,
+    "San Jose (Alma)":516,
+    "San Jose (DLC)":607,
+    "Los Angeles (Hope St)":502,
+    "Hollywood":633,
+    "Santa Ana":529,
+    "San Diego (Normal St)":504,
+    "Sacramento (Broadway)":500,
+    "Fresno":505
+}
 
 # -------------------------
 # UTILS
@@ -23,33 +39,44 @@ def format_us(d):
 # -------------------------
 # FORMULAIRE
 # -------------------------
-st.title("Permis Californie (version réaliste)")
+st.title("Permis Californie (DD officiel)")
 
 ln = st.text_input("Nom", "HARMS")
 fn = st.text_input("Prénom", "ROSA")
 sex = st.selectbox("Sexe", ["M","F","X"])
-dob = st.date_input("Date de naissance", datetime.date(1995,12,31))
+dob = st.date_input("DOB", datetime.date(1995,12,31))
 
-iss = st.date_input("Date émission", datetime.date.today())
+office_name = st.selectbox("Field Office", list(offices.keys()))
+office_code = offices[office_name]
+
+iss = st.date_input("ISS", datetime.date.today())
 
 generate = st.button("Générer")
 
 # -------------------------
-# GENERATION LOGIQUE
+# GENERATION
 # -------------------------
 if generate:
 
     r = random.Random(seed(ln,fn,dob))
 
-    # DL NUMBER
+    # DL
     dl = ln[0].upper() + rdigits(r,7)
 
-    # EXP = +5 ans + anniversaire
-    exp_year = iss.year + 5
-    exp = datetime.date(exp_year, dob.month, dob.day)
+    # EXP
+    exp = datetime.date(iss.year + 5, dob.month, dob.day)
 
-    # DD
-    dd = f"{format_us(iss)}{rdigits(r,5)}/{rdigits(r,2)}FD/{str(iss.year)[-2:]}"
+    # ID SEQUENCE (2 digits)
+    sequence = rdigits(r,2)
+
+    # FD RANDOM (10–99)
+    fd_random = random.randint(10,99)
+
+    # YEAR (2 digits)
+    year_short = str(iss.year)[-2:]
+
+    # DD FINAL
+    dd = f"{format_us(iss)}{office_code}{sequence}/{fd_random}FD/{year_short}"
 
     dob_us = format_us(dob)
     iss_us = format_us(iss)
@@ -69,43 +96,30 @@ if generate:
         background:linear-gradient(135deg,#1e3a8a,#2563eb);
         color:white;
     }}
-    .title {{
-        display:flex;
-        justify-content:space-between;
-        font-weight:bold;
-    }}
-    .section {{margin-top:10px; font-size:12px;}}
-    .label {{opacity:0.7; font-size:10px;}}
-    .value {{font-weight:bold;}}
+    .label {{font-size:10px;opacity:0.7;}}
+    .value {{font-weight:bold;margin-bottom:5px;}}
     </style>
 
     <div class="card">
+        <div class="value">DL {dl}</div>
 
-        <div class="title">
-            <div>CALIFORNIA DL</div>
-            <div>{dl}</div>
-        </div>
+        <div class="label">NAME</div>
+        <div class="value">{ln} {fn}</div>
 
-        <div class="section">
-            <div class="label">NAME</div>
-            <div class="value">{ln} {fn}</div>
+        <div class="label">SEX</div>
+        <div class="value">{sex}</div>
 
-            <div class="label">SEX</div>
-            <div class="value">{sex}</div>
+        <div class="label">DOB</div>
+        <div class="value">{dob_us}</div>
 
-            <div class="label">DOB</div>
-            <div class="value">{dob_us}</div>
+        <div class="label">ISS</div>
+        <div class="value">{iss_us}</div>
 
-            <div class="label">ISS</div>
-            <div class="value">{iss_us}</div>
+        <div class="label">EXP</div>
+        <div class="value">{exp_us}</div>
 
-            <div class="label">EXP</div>
-            <div class="value">{exp_us}</div>
-
-            <div class="label">DD</div>
-            <div class="value">{dd}</div>
-        </div>
-
+        <div class="label">DD</div>
+        <div class="value">{dd}</div>
     </div>
     </html>
     """
@@ -113,7 +127,7 @@ if generate:
     components.html(html, height=260)
 
     # -------------------------
-    # IMAGE PNG
+    # EXPORT PNG
     # -------------------------
     img = Image.new("RGB", (600,300), "#1e3a8a")
     draw = ImageDraw.Draw(img)
@@ -133,24 +147,14 @@ DD: {dd}
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
 
-    st.download_button(
-        "📥 Télécharger PNG",
-        data=buffer.getvalue(),
-        file_name="permis.png",
-        mime="image/png"
-    )
+    st.download_button("📥 Télécharger PNG", buffer.getvalue(), "permis.png")
 
     # -------------------------
-    # PDF
+    # EXPORT PDF
     # -------------------------
     pdf_buffer = io.BytesIO()
     img.save(pdf_buffer, format="PDF")
 
-    st.download_button(
-        "📄 Télécharger PDF",
-        data=pdf_buffer.getvalue(),
-        file_name="permis.pdf",
-        mime="application/pdf"
-    )
+    st.download_button("📄 Télécharger PDF", pdf_buffer.getvalue(), "permis.pdf")
 
-    st.success("Permis généré + export prêt")
+    st.success("Permis généré avec DD officiel")
