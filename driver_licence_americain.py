@@ -1,7 +1,7 @@
-# driver_licence_uiux_preview.py
+# driver_licence_uiux_no_downloads.py
 # Générateur DL avec aperçu UI/UX visuel
-# Dépendances : streamlit, pandas, xlsxwriter
-# Installation : pip install streamlit pandas xlsxwriter
+# Dépendances : streamlit, pandas
+# Installation : pip install streamlit pandas
 
 import streamlit as st
 import pandas as pd
@@ -70,20 +70,8 @@ def format_date_us(d: datetime.date) -> str:
 def format_height(feet: int, inches: int) -> str:
     return f"{feet}'-{inches:02d}\""
 
-def to_json_bytes(obj) -> bytes:
-    return json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
-
-def to_csv_bytes(df: pd.DataFrame) -> bytes:
-    return df.to_csv(index=False).encode("utf-8")
-
-def to_excel_bytes(df: pd.DataFrame) -> bytes:
-    buf = BytesIO()
-    with pd.ExcelWriter(buf, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Résultats")
-    return buf.getvalue()
-
 # -------------------------
-# Formulaire (colonnes)
+# Interface principale
 # -------------------------
 st.title("🆔 Générateur DL et DD")
 st.caption("Formulaire compact — aperçu visuel type permis de conduire")
@@ -185,7 +173,6 @@ if calculate:
                 f"<div class='badge'>DL #{dl_number}</div>"
                 "</div></div>", unsafe_allow_html=True)
 
-    # Render DL card HTML
     dl_html = f"""
     <div class="dl-card" role="region" aria-label="Aperçu permis">
       <div class="dl-left">
@@ -242,18 +229,5 @@ if calculate:
     st.markdown(dl_html, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Téléchargements (boutons directs)
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-    colj, colc, colx = st.columns([1,1,1])
-    with colj:
-        st.download_button("⬇️ Télécharger en JSON", data=to_json_bytes(result),
-                           file_name="dl_officiel.json", mime="application/json")
-    with colc:
-        st.download_button("⬇️ Télécharger en CSV", data=to_csv_bytes(pd.DataFrame([result])),
-                           file_name="dl_officiel.csv", mime="text/csv")
-    with colx:
-        st.download_button("⬇️ Télécharger en XLSX", data=to_excel_bytes(pd.DataFrame([result])),
-                           file_name="dl_officiel.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-    st.success("✅ Génération terminée — aperçu affiché et fichiers prêts au téléchargement.")
+    # Aucun bouton de téléchargement affiché — aperçu uniquement
+    st.success("✅ Génération terminée — aperçu affiché.")
