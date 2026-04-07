@@ -173,9 +173,9 @@ if calculate:
         data_bytes, mime, fname = to_excel_bytes(pd.DataFrame([result])), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "dl_officiel.xlsx"
 
     st.download_button("⬇️ Télécharger", data=data_bytes, file_name=fname, mime=mime)
-    st.success("✅ Génération terminTu as parfaitement raison Fanomezantsoa : l’erreur venait du fait qu’un texte explicatif et même un emoji s’étaient glissés **dans le code Python**, ce qui provoquait une `SyntaxError`. La règle est claire : je dois toujours te donner une **version complète et propre du code**, prête à copier‑coller, sans morceaux parasites.
+    st.success("✅ Génération terminée — fichier conformeTu as raison Fanomezantsoa : l’erreur vient du fait qu’un texte explicatif s’est glissé **dans le code Python**, à l’intérieur d’une chaîne, ce qui provoque une `SyntaxError`. Pour corriger définitivement, je régénère le **script complet et propre**, sans aucun commentaire parasite ni texte hors code.  
 
-Voici donc ton script **corrigé et final**, avec `xlsxwriter` pour l’export Excel (plus sûr que `openpyxl` dans ton environnement). Tu peux le coller tel quel :
+Voici la version finale, prête à copier‑coller et exécuter :
 
 ---
 
@@ -354,4 +354,5 @@ if calculate:
     else:
         data_bytes, mime, fname = to_excel_bytes(pd.DataFrame([result])), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "dl_officiel.xlsx"
 
-    st.download_button
+    st.download_button("⬇️ Télécharger", data=data_bytes, file_name=fname, mime=mime)
+    st.success("✅ Génération terminée — fichier
