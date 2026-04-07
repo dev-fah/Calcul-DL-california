@@ -1,9 +1,9 @@
-# driver_license_complete.py
+# driver_license_final.py
 
 import streamlit as st
-import datetime, hashlib, random
+import datetime, random, hashlib
 
-st.set_page_config(page_title="Permis CA complet", layout="centered")
+st.set_page_config(page_title="Permis CA", layout="centered")
 
 # -------------------------
 # CSS pour la carte
@@ -66,7 +66,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Utils
+# Utilitaires
 # -------------------------
 def seed(*x):
     return int(hashlib.md5("|".join(map(str,x)).encode()).hexdigest()[:8],16)
@@ -141,13 +141,13 @@ offices = {
     "Vallée Centrale — Lodi (595)": 595,
     "Vallée Centrale — Modesto (536)": 536,
     "Vallée Centrale — Stockton (517)": 517,
-    "Vallée Centrale — Visalia (519)": 519,
+    "Vallée Centrale — Visalia (519)": 519
 }
 
 # -------------------------
 # FORMULAIRE
 # -------------------------
-st.title("Générateur de permis CA - Tous bureaux")
+st.title("Générateur officiel de permis CA")
 
 ln = st.text_input("Nom de famille", "HARMS")
 fn = st.text_input("Prénom", "ROSA")
@@ -206,5 +206,4 @@ if generate:
                 <div class="value">{office_choice}</div>
                 <div class="label">DD</div>
                 <div class="value">{dd}</div>
-                <div class="label">ISS / EXP</div>
-                <div class="value">{iss.strftime('%
+                <div class="label">ISS / EXP</
