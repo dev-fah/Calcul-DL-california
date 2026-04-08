@@ -1,17 +1,14 @@
-# driver_license_final_full.py
+# driver_license_final_full_visible.py
 
 import streamlit as st
 import datetime, random, hashlib, re
 from datetime import datetime as dt
 
-# ==========================
-# Page Streamlit
-# ==========================
 st.set_page_config(page_title="Permis CA", layout="centered")
 
-# -------------------------
-# CSS pour la carte
-# -------------------------
+# ==========================
+# CSS
+# ==========================
 st.markdown("""
 <style>
 .card {
@@ -26,51 +23,29 @@ st.markdown("""
 .header {
     display:flex;
     justify-content:space-between;
-    align-items:center;
     font-weight:700;
     font-size:14px;
-    margin-bottom:10px;
 }
-.body {
-    display:flex;
-    gap:12px;
-}
+.body { display:flex; gap:12px; }
 .photo {
-    width:90px;
-    height:110px;
-    background:#e5e7eb;
-    border-radius:8px;
+    width:90px; height:110px;
+    background:#e5e7eb; border-radius:8px;
 }
-.info {
-    flex:1;
-    font-size:12px;
-}
-.label {
-    opacity:0.7;
-    font-size:10px;
-}
-.value {
-    font-weight:700;
-    margin-bottom:4px;
-}
-.footer {
-    margin-top:10px;
-    display:flex;
-    justify-content:space-between;
-    font-size:11px;
-}
-.badge {
-    background:white;
-    color:#1e3a8a;
-    padding:2px 6px;
-    border-radius:6px;
-    font-weight:700;
+.label { opacity:0.7; font-size:10px; }
+.value { font-weight:700; margin-bottom:4px; }
+
+.analysis {
+    margin-top:20px;
+    padding:12px;
+    border-radius:10px;
+    background:#f8fafc;
+    border:1px solid #e5e7eb;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================
-# Utilitaires
+# Utils
 # ==========================
 def seed(*x):
     return int(hashlib.md5("|".join(map(str,x)).encode()).hexdigest()[:8],16)
@@ -79,13 +54,13 @@ def rdigits(r,n):
     return "".join(r.choice("0123456789") for _ in range(n))
 
 def rletter(r, initial):
-    return initial.upper() if initial.isalpha() else r.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    return initial.upper()
 
 def next_sequence(r):
     return str(r.randint(10,99))
 
 # ==========================
-# Bureaux Field Office complets
+# Offices (complet)
 # ==========================
 offices = {
     "Baie de San Francisco — Corte Madera (525)": 525,
@@ -149,147 +124,90 @@ offices = {
 }
 
 # ==========================
-# Module d'analyse AAMVA / PF417
+# Analyse PF417
 # ==========================
-def analyseur_permis_californie(donnees_brutes):
-    champs_aamva = {
-        "DAQ": "Numéro de Permis",
-        "DCS": "Nom de Famille",
-        "DCT": "Prénom",
-        "DAG": "Adresse complète",
-        "DAI": "Ville",
-        "DAJ": "État",
-        "DAK": "Code Postal",
-        "DBB": "Date de Naissance (DOB)",
-        "DBA": "Date d'Expiration (EXP)",
-        "DBD": "Date d'Émission (ISS)",
-        "DBC": "Sexe",
-        "DAU": "Taille (inches)",
-        "DAY": "Yeux",
-        "DAZ": "Cheveux",
-        "DAW": "Poids (lb)"
-    }
+def analyseur(data):
+    res = {}
 
-    resultats = {}
-    maintenant = dt.now()
+    def find(code):
+        m = re.search(f"{code}(.*?)(?=[D][A-Z][A-Z]|$)", data)
+        return m.group(1).strip() if m else "?"
 
-    for code, label in champs_aamva.items():
-        pattern = f"{code}(.*?)(?=[D][A-Z][A-Z]|$)"
-        match = re.search(pattern, donnees_brutes)
-        resultats[label] = match.group(1).strip() if match else "NON_DETECTE"
+    res["DL"] = find("DAQ")
+    res["Nom"] = find("DCS")
+    res["Prenom"] = find("DCT")
+    res["DOB"] = find("DBB")
+    res["EXP"] = find("DBA")
 
-    # Validation EXP
-    date_exp_str = resultats.get("Date d'Expiration (EXP)","")
-    try:
-        date_exp_obj = dt.strptime(date_exp_str, "%m%d%Y")
-        resultats["STATUT_VALIDITE"] = "🟢 VALIDE" if date_exp_obj >= maintenant else f"🔴 EXPIRE ({date_exp_obj.strftime('%d/%m/%Y')})"
-    except:
-        resultats["STATUT_VALIDITE"] = "⚠️ ERREUR_FORMAT_DATE"
+    # validation DL
+    res["DL_OK"] = "✅" if re.match(r"^[A-Z][0-9]{7}$", res["DL"]) else "❌"
 
-    # DOB
-    dob_str = resultats.get("Date de Naissance (DOB)","")
-    try:
-        dob_obj = dt.strptime(dob_str, "%m%d%Y")
-        resultats["DOB_FORMAT"] = dob_obj.strftime("%d/%m/%Y")
-    except:
-        resultats["DOB_FORMAT"] = "⚠️ ERREUR_FORMAT_DATE"
-
-    # ISS
-    iss_str = resultats.get("Date d'Émission (ISS)","")
-    try:
-        iss_obj = dt.strptime(iss_str, "%m%d%Y")
-        resultats["ISS_FORMAT"] = iss_obj.strftime("%d/%m/%Y")
-    except:
-        resultats["ISS_FORMAT"] = "⚠️ ERREUR_FORMAT_DATE"
-
-    # Vérification DL Californien
-    num_dl = resultats.get("Numéro de Permis","")
-    resultats["VERIFICATION_DL"] = "✅ Format Californien Conforme" if re.match(r"^[A-Z][0-9]{7}$", num_dl) else "❌ Format Invalide"
-
-    return resultats
+    return res
 
 # ==========================
-# Formulaire Streamlit
+# FORMULAIRE
 # ==========================
-st.title("Générateur officiel de permis CA")
+st.title("Permis Californie")
 
-ln = st.text_input("Nom de famille", "HARMS")
+ln = st.text_input("Nom", "HARMS")
 fn = st.text_input("Prénom", "ROSA")
 sex = st.selectbox("Sexe", ["M","F"])
-dob = st.date_input("Date de naissance", datetime.date(1990,1,1))
-
-col1, col2 = st.columns(2)
-with col1:
-    h1 = st.number_input("Pieds",0,8,5)
-    w = st.number_input("Poids (lb)",30,500,160)
-with col2:
-    h2 = st.number_input("Pouces",0,11,10)
-    eyes = st.text_input("Yeux","BRN")
-hair = st.text_input("Cheveux","BRN")
-cls = st.text_input("Classe","C")
-rstr = st.text_input("Restrictions","NONE")
-endorse = st.text_input("Endorsements","NONE")
-iss = st.date_input("Date d'émission", datetime.date.today())
+dob = st.date_input("DOB", datetime.date(1990,1,1))
+iss = st.date_input("ISS", datetime.date.today())
 office_choice = st.selectbox("Field Office", list(offices.keys()))
-generate = st.button("Générer la carte")
+
+generate = st.button("Générer")
 
 # ==========================
-# GÉNÉRATION DE LA CARTE
+# RESULTAT
 # ==========================
 if generate:
+
     r = random.Random(seed(ln,fn,dob))
     dl = rletter(r, ln[0]) + rdigits(r,7)
-    exp_year = iss.year + 5
-    exp = datetime.date(exp_year, dob.month, dob.day)
+
+    exp = datetime.date(iss.year+5, dob.month, dob.day)
+
     office_code = offices[office_choice]
     seq = next_sequence(r)
+
     dd = f"{iss.strftime('%m/%d/%Y')}{office_code}{seq}FD/{iss.year%100}"
 
-    # Création du code PF417 simulé pour test
-    raw_input_pf417 = (
-        f"DAQ{dl}DCS{ln}DCT{fn}DAG123 MAIN STDAIANYDAJCA"
-        f"DAK12345DBB{dob.strftime('%m%d%Y')}DBA{exp.strftime('%m%d%Y')}DBD{iss.strftime('%m%d%Y')}"
-        f"DBCFDAU{h1*12+h2}DAY{eyes}DAZ{hair}DAW{w}"
-    )
-    analyse = analyseur_permis_californie(raw_input_pf417)
+    raw = f"DAQ{dl}DCS{ln}DCT{fn}DBB{dob.strftime('%m%d%Y')}DBA{exp.strftime('%m%d%Y')}"
+    analyse = analyseur(raw)
 
-    html = f"""
+    # CARTE
+    st.markdown(f"""
     <div class="card">
         <div class="header">
-            <div>CALIFORNIA USA DRIVER LICENSE</div>
-            <div class="badge">{dl}</div>
+            <div>CALIFORNIA DRIVER LICENSE</div>
+            <div>{dl}</div>
         </div>
+
         <div class="body">
             <div class="photo"></div>
-            <div class="info">
+            <div>
                 <div class="label">Nom</div>
                 <div class="value">{ln}</div>
+
                 <div class="label">Prénom</div>
                 <div class="value">{fn}</div>
-                <div class="label">Sexe</div>
-                <div class="value">{sex}</div>
+
                 <div class="label">DOB</div>
                 <div class="value">{dob.strftime('%m/%d/%Y')}</div>
-                <div class="label">Field Office</div>
-                <div class="value">{office_choice}</div>
+
+                <div class="label">ISS / EXP</div>
+                <div class="value">{iss.strftime('%m/%d/%Y')} / {exp.strftime('%m/%d/%Y')}</div>
+
                 <div class="label">DD</div>
                 <div class="value">{dd}</div>
-                <div class="label">ISS</div>
-                <div class="value">{iss.strftime('%m/%d/%Y')}</div>
-                <div class="label">EXP</div>
-                <div class="value">{exp.strftime('%m/%d/%Y')}</div>
-                <div class="label">Classe</div>
-                <div class="value">{cls}</div>
-                <div class="label">Restrictions</div>
-                <div class="value">{rstr}</div>
-                <div class="label">Endorsements</div>
-                <div class="value">{endorse}</div>
-                <div class="label">Yeux / Cheveux / Taille / Poids</div>
-                <div class="value">{eyes} / {hair} / {h1}'{h2}'' / {w} lb</div>
-                <div class="label">STATUT VALIDITÉ / Vérification DL</div>
-                <div class="value">{analyse['STATUT_VALIDITE']} / {analyse['VERIFICATION_DL']}</div>
             </div>
         </div>
     </div>
-    """
-    st.markdown(html, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
+
+    # ANALYSE VISIBLE
+    st.markdown("<div class='analysis'>", unsafe_allow_html=True)
+    st.subheader("Analyse Code Barre (PF417)")
+    st.write(analyse)
+    st.markdown("</div>", unsafe_allow_html=True)
