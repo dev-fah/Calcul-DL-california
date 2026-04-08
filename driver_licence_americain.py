@@ -2,44 +2,15 @@
 
 import streamlit as st
 from datetime import date, datetime
-import random, hashlib, io
-from pdf417gen import encode, render_image
+import hashlib, random, io
+import pypdf417
+from PIL import Image
 
-# -------------------------
-# Config Streamlit
-# -------------------------
 st.set_page_config(page_title="Permis Californie PDF417", layout="centered")
 st.title("Générateur Académique de Permis Californie")
 st.write("Système interactif pour générer un permis CA avec code-barres PDF417 (AAMVA)")
 
-# -------------------------
-# Styles CSS
-# -------------------------
-st.markdown("""
-<style>
-.card {
-    width: 450px;
-    border-radius: 14px;
-    padding: 16px;
-    background: linear-gradient(135deg,#1e3a8a,#2563eb);
-    color: white;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-    margin: auto;
-}
-.header { display:flex; justify-content:space-between; align-items:center; font-weight:700; font-size:14px; margin-bottom:10px; }
-.body { display:flex; gap:12px; }
-.photo { width:90px; height:110px; background:#e5e7eb; border-radius:8px; }
-.info { flex:1; font-size:12px; }
-.label { opacity:0.7; font-size:10px; }
-.value { font-weight:700; margin-bottom:4px; }
-.footer { margin-top:10px; display:flex; justify-content:space-between; font-size:11px; }
-.badge { background:white; color:#1e3a8a; padding:2px 6px; border-radius:6px; font-weight:700; }
-</style>
-""", unsafe_allow_html=True)
-
-# -------------------------
-# Utilitaires
-# -------------------------
+# --- Fonction utilitaire ---
 def seed(*x):
     return int(hashlib.md5("|".join(map(str,x)).encode()).hexdigest()[:8],16)
 
@@ -52,73 +23,7 @@ def rletter(r, initial):
 def next_sequence(r):
     return str(r.randint(10,99))
 
-# -------------------------
-# Bureaux Field Office
-# -------------------------
-offices = {
-    "Baie de San Francisco — Corte Madera (525)": 525,
-    "Baie de San Francisco — Daly City (599)": 599,
-    "Baie de San Francisco — El Cerrito (585)": 585,
-    "Baie de San Francisco — Fremont (643)": 643,
-    "Baie de San Francisco — Hayward (521)": 521,
-    "Baie de San Francisco — Los Gatos (641)": 641,
-    "Baie de San Francisco — Novato (647)": 647,
-    "Baie de San Francisco — Oakland (Claremont) (501)": 501,
-    "Baie de San Francisco — Oakland (Coliseum) (604)": 604,
-    "Baie de San Francisco — Pittsburg (651)": 651,
-    "Baie de San Francisco — Pleasanton (639)": 639,
-    "Baie de San Francisco — Redwood City (542)": 542,
-    "Baie de San Francisco — San Francisco (503)": 503,
-    "Baie de San Francisco — San Jose (Alma) (516)": 516,
-    "Baie de San Francisco — San Jose (Driver License Center) (607)": 607,
-    "Baie de San Francisco — San Mateo (594)": 594,
-    "Baie de San Francisco — Santa Clara (632)": 632,
-    "Baie de San Francisco — Vallejo (538)": 538,
-    "Grand Los Angeles — Arleta (628)": 628,
-    "Grand Los Angeles — Bellflower (610)": 610,
-    "Grand Los Angeles — Culver City (514)": 514,
-    "Grand Los Angeles — Glendale (540)": 540,
-    "Grand Los Angeles — Hollywood (633)": 633,
-    "Grand Los Angeles — Inglewood (544)": 544,
-    "Grand Los Angeles — Long Beach (507)": 507,
-    "Grand Los Angeles — Los Angeles (Hope St) (502)": 502,
-    "Grand Los Angeles — Montebello (531)": 531,
-    "Grand Los Angeles — Pasadena (510)": 510,
-    "Grand Los Angeles — Santa Monica (548)": 548,
-    "Grand Los Angeles — Torrance (592)": 592,
-    "Grand Los Angeles — West Covina (591)": 591,
-    "Orange County / Sud — Costa Mesa (627)": 627,
-    "Orange County / Sud — Fullerton (547)": 547,
-    "Orange County / Sud — Laguna Hills (642)": 642,
-    "Orange County / Sud — Santa Ana (529)": 529,
-    "Orange County / Sud — San Clemente (652)": 652,
-    "Orange County / Sud — Westminster (623)": 623,
-    "San Diego & Environs — Chula Vista (609)": 609,
-    "San Diego & Environs — El Cajon (549)": 549,
-    "San Diego & Environs — Oceanside (593)": 593,
-    "San Diego & Environs — San Diego (Clairemont) (618)": 618,
-    "San Diego & Environs — San Diego (Normal St) (504)": 504,
-    "San Diego & Environs — San Marcos (637)": 637,
-    "San Diego & Environs — San Ysidro (649)": 649,
-    "Sacramento / Nord — Auburn (533)": 533,
-    "Sacramento / Nord — Chico (534)": 534,
-    "Sacramento / Nord — Eureka (522)": 522,
-    "Sacramento / Nord — Redding (550)": 550,
-    "Sacramento / Nord — Roseville (635)": 635,
-    "Sacramento / Nord — Sacramento (Broadway) (500)": 500,
-    "Sacramento / Nord — Sacramento (South) (603)": 603,
-    "Sacramento / Nord — Woodland (535)": 535,
-    "Vallée Centrale — Bakersfield (511)": 511,
-    "Vallée Centrale — Fresno (505)": 505,
-    "Vallée Centrale — Lodi (595)": 595,
-    "Vallée Centrale — Modesto (536)": 536,
-    "Vallée Centrale — Stockton (517)": 517,
-    "Vallée Centrale — Visalia (519)": 519
-}
-
-# -------------------------
-# Formulaire utilisateur
-# -------------------------
+# --- Formulaire ---
 with st.form("dl_form"):
     ln = st.text_input("Nom de famille", "HARMS")
     fn = st.text_input("Prénom", "ROSA")
@@ -138,24 +43,16 @@ with st.form("dl_form"):
     endorse = st.text_input("Endorsements","NONE")
     iss = st.date_input("Date d'émission", date.today())
     
-    office_choice = st.selectbox("Field Office", list(offices.keys()))
-    
     submit = st.form_submit_button("Générer la carte")
 
-# -------------------------
-# Génération carte + PDF417
-# -------------------------
+# --- Génération ---
 if submit:
     r = random.Random(seed(ln,fn,dob))
     dl = rletter(r, ln[0]) + rdigits(r,7)
     
     exp_year = iss.year + 5
     exp = date(exp_year, dob.month, dob.day)
-    
-    office_code = offices[office_choice]
-    seq = next_sequence(r)
-    dd = f"{iss.strftime('%m/%d/%Y')}{office_code}{seq}FD/{iss.year%100}"
-    
+
     # Chaîne AAMVA pour PDF417
     aamva_data = {
         "DCS": ln.upper(),
@@ -166,48 +63,18 @@ if submit:
     }
     raw_string = "".join(f"{k}{v}" for k,v in aamva_data.items())
     
-    # Génération PDF417
-    codes = encode(raw_string, columns=10)
-    image = render_image(codes, scale=3)
+    # Génération PDF417 (pypdf417)
+    codes = pypdf417.encode(raw_string)
+    image = pypdf417.render_image(codes, scale=3)
     
     # Préparation PNG en mémoire
     buf = io.BytesIO()
     image.save(buf, format="PNG")
     byte_im = buf.getvalue()
     
-    # Affichage carte
-    html = f"""
-    <div class="card">
-        <div class="header">
-            <div>CALIFORNIA USA DRIVER LICENSE</div>
-            <div class="badge">{dl}</div>
-        </div>
-        <div class="body">
-            <div class="photo"></div>
-            <div class="info">
-                <div class="label">Nom</div><div class="value">{ln}</div>
-                <div class="label">Prénom</div><div class="value">{fn}</div>
-                <div class="label">Sexe</div><div class="value">{sex}</div>
-                <div class="label">DOB</div><div class="value">{dob.strftime('%m/%d/%Y')}</div>
-                <div class="label">Field Office</div><div class="value">{office_choice}</div>
-                <div class="label">DD</div><div class="value">{dd}</div>
-                <div class="label">ISS</div><div class="value">{iss.strftime('%m/%d/%Y')}</div>
-                <div class="label">EXP</div><div class="value">{exp.strftime('%m/%d/%Y')}</div>
-                <div class="label">Classe</div><div class="value">{cls}</div>
-                <div class="label">Restrictions</div><div class="value">{rstr}</div>
-                <div class="label">Endorsements</div><div class="value">{endorse}</div>
-                <div class="label">Yeux / Cheveux / Taille / Poids</div>
-                <div class="value">{eyes} / {hair} / {h1}'{h2}'' / {w} lb</div>
-            </div>
-        </div>
-    </div>
-    """
-    st.markdown(html, unsafe_allow_html=True)
-    
-    # Affichage PDF417
+    # Affichage Streamlit
     st.image(byte_im, caption="Code-barres PDF417 du permis")
     
-    # Bouton téléchargement
     st.download_button(
         label="Télécharger le code-barres (PNG)",
         data=byte_im,
