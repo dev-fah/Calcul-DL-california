@@ -1,4 +1,6 @@
 # driver_license_final_fixed.py
+# Version robuste : validations et gestion des cas limites
+# Interface et règles inchangées
 
 import streamlit as st
 import datetime, random, hashlib
@@ -6,7 +8,7 @@ import datetime, random, hashlib
 st.set_page_config(page_title="Permis CA", layout="centered")
 
 # -------------------------
-# CSS pour la carte
+# CSS pour la carte (inchangé)
 # -------------------------
 st.markdown("""
 <style>
@@ -66,22 +68,36 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Utilitaires
+# Utilitaires (améliorés mais comportement identique)
 # -------------------------
 def seed(*x):
-    return int(hashlib.md5("|".join(map(str,x)).encode()).hexdigest()[:8],16)
+    # Utiliser une représentation stable des dates pour seed
+    parts = []
+    for item in x:
+        if isinstance(item, (datetime.date, datetime.datetime)):
+            parts.append(item.isoformat())
+        else:
+            parts.append(str(item))
+    return int(hashlib.md5("|".join(parts).encode()).hexdigest()[:8],16)
 
 def rdigits(r,n):
     return "".join(r.choice("0123456789") for _ in range(n))
 
 def rletter(r, initial):
-    return initial.upper() if initial.isalpha() else r.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    # Si initial est une lettre, l'utiliser en majuscule, sinon choisir aléatoirement
+    try:
+        if isinstance(initial, str) and initial and initial[0].isalpha():
+            return initial[0].upper()
+    except Exception:
+        pass
+    return r.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 def next_sequence(r):
+    # Conserver le comportement existant (2 chiffres)
     return str(r.randint(10,99))
 
 # -------------------------
-# Bureaux Field Office complets
+# Bureaux Field Office (inchangé)
 # -------------------------
 offices = {
     "Baie de San Francisco — Corte Madera (525)": 525,
@@ -145,7 +161,7 @@ offices = {
 }
 
 # -------------------------
-# FORMULAIRE
+# FORMULAIRE (inchangé visuellement)
 # -------------------------
 st.title("Générateur officiel de permis CA")
 
@@ -172,19 +188,72 @@ office_choice = st.selectbox("Field Office", list(offices.keys()))
 generate = st.button("Générer la carte")
 
 # -------------------------
-# GÉNÉRATION DE LA CARTE
+# VALIDATIONS MINIMALES (non invasives)
+# -------------------------
+def validate_inputs():
+    errors = []
+    if not ln or not ln.strip():
+        errors.append("Nom de famille requis.")
+    if not fn or not fn.strip():
+        errors.append("Prénom requis.")
+    if dob > datetime.date.today():
+        errors.append("Date de naissance ne peut pas être dans le futur.")
+    if iss > datetime.date.today():
+        errors.append("Date d'émission ne peut pas être dans le futur.")
+    # poids/taille raisonnables
+    if w < 30 or w > 500:
+        errors.append("Poids hors plage attendue.")
+    if h1 < 0 or h1 > 8 or h2 < 0 or h2 > 11:
+        errors.append("Taille hors plage attendue.")
+    return errors
+
+# -------------------------
+# GÉNÉRATION DE LA CARTE (logique inchangée mais plus robuste)
 # -------------------------
 if generate:
+    # validations
+    errs = validate_inputs()
+    if errs:
+        for e in errs:
+            st.error(e)
+        st.stop()
+
+    # Random déterministe
     r = random.Random(seed(ln,fn,dob))
-    dl = rletter(r, ln[0]) + rdigits(r,7)
-    
+
+    # DL : lettre + 7 chiffres (même règle)
+    dl = rletter(r, ln[0] if ln else "") + rdigits(r,7)
+
+    # EXP : 5 ans après ISS, aligné sur mois/jour de DOB (même règle)
     exp_year = iss.year + 5
-    exp = datetime.date(exp_year, dob.month, dob.day)
-    
+    try:
+        exp = datetime.date(exp_year, dob.month, dob.day)
+    except ValueError:
+        # Cas 29 février -> fallback au 28 février (gestion non invasive)
+        if dob.month == 2 and dob.day == 29:
+            exp = datetime.date(exp_year, 2, 28)
+        else:
+            # fallback général : utiliser le dernier jour du mois
+            last_day = (datetime.date(exp_year, dob.month % 12 + 1, 1) - datetime.timedelta(days=1)).day
+            exp = datetime.date(exp_year, dob.month, min(dob.day, last_day))
+
+    # Field office code et DD (même logique, format conservé)
     office_code = offices[office_choice]
     seq = next_sequence(r)
+    # garantir que seq est 2 chiffres
+    seq = seq.zfill(2)
     dd = f"{iss.strftime('%m/%d/%Y')}{office_code}{seq}FD/{iss.year%100}"
-    
+
+    # Normalisations d'affichage (MAJ pour codes, format taille)
+    eyes_disp = (eyes or "").upper()
+    hair_disp = (hair or "").upper()
+    cls_disp = (cls or "").upper()
+    rstr_disp = (rstr or "").upper()
+    endorse_disp = (endorse or "").upper()
+    # Format taille standard (ex: 5'10")
+    height_str = f"{int(h1)}'{int(h2)}\""
+
+    # HTML inchangé visuellement, mêmes champs et labels
     html = f"""
     <div class="card">
         <div class="header">
@@ -211,17 +280,15 @@ if generate:
                 <div class="label">EXP</div>
                 <div class="value">{exp.strftime('%m/%d/%Y')}</div>
                 <div class="label">Classe</div>
-                <div class="value">{cls}</div>
+                <div class="value">{cls_disp}</div>
                 <div class="label">Restrictions</div>
-                <div class="value">{rstr}</div>
+                <div class="value">{rstr_disp}</div>
                 <div class="label">Endorsements</div>
-                <div class="value">{endorse}</div>
+                <div class="value">{endorse_disp}</div>
                 <div class="label">Yeux / Cheveux / Taille / Poids</div>
-                <div class="value">{eyes} / {hair} / {h1}'{h2}'' / {w} lb</div>
+                <div class="value">{eyes_disp} / {hair_disp} / {height_str} / {w} lb</div>
             </div>
         </div>
     </div>
     """
     st.markdown(html, unsafe_allow_html=True)
-
-
