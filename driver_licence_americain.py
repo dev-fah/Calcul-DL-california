@@ -1,73 +1,38 @@
-# driver_license_final_fixed.py
+# streamlit_app_fixed.py
+# Version corrigée du script original — même interface, gestion de l'absence de pypdf417
+# Dépendances recommandées : streamlit, pypdf417 (ou pdf417gen), pillow
+# Installer si nécessaire : pip install streamlit pypdf417 pillow
+# Alternative : pip install streamlit pdf417gen pillow
 
 import streamlit as st
-import datetime, random, hashlib
+from datetime import date, datetime
+import hashlib, random, io
 
-st.set_page_config(page_title="Permis CA", layout="centered")
+# Essayer d'importer pypdf417, sinon pdf417gen, sinon None
+pypdf417 = None
+pdf417gen = None
+pil_available = True
+try:
+    import pypdf417 as _p
+    pypdf417 = _p
+except Exception:
+    try:
+        import pdf417gen as _g
+        pdf417gen = _g
+    except Exception:
+        pypdf417 = None
+        pdf417gen = None
 
-# -------------------------
-# CSS pour la carte
-# -------------------------
-st.markdown("""
-<style>
-.card {
-    width: 450px;
-    border-radius: 14px;
-    padding: 16px;
-    background: linear-gradient(135deg,#1e3a8a,#2563eb);
-    color: white;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-    margin: auto;
-}
-.header {
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    font-weight:700;
-    font-size:14px;
-    margin-bottom:10px;
-}
-.body {
-    display:flex;
-    gap:12px;
-}
-.photo {
-    width:90px;
-    height:110px;
-    background:#e5e7eb;
-    border-radius:8px;
-}
-.info {
-    flex:1;
-    font-size:12px;
-}
-.label {
-    opacity:0.7;
-    font-size:10px;
-}
-.value {
-    font-weight:700;
-    margin-bottom:4px;
-}
-.footer {
-    margin-top:10px;
-    display:flex;
-    justify-content:space-between;
-    font-size:11px;
-}
-.badge {
-    background:white;
-    color:#1e3a8a;
-    padding:2px 6px;
-    border-radius:6px;
-    font-weight:700;
-}
-</style>
-""", unsafe_allow_html=True)
+try:
+    from PIL import Image
+except Exception:
+    pil_available = False
 
-# -------------------------
-# Utilitaires
-# -------------------------
+st.set_page_config(page_title="Permis Californie PDF417", layout="centered")
+st.title("Générateur Académique de Permis Californie")
+st.write("Système interactif pour générer un permis CA avec code-barres PDF417 (AAMVA)")
+
+# --- Fonction utilitaire ---
 def seed(*x):
     return int(hashlib.md5("|".join(map(str,x)).encode()).hexdigest()[:8],16)
 
@@ -75,153 +40,120 @@ def rdigits(r,n):
     return "".join(r.choice("0123456789") for _ in range(n))
 
 def rletter(r, initial):
-    return initial.upper() if initial.isalpha() else r.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    return initial.upper() if initial and initial.isalpha() else r.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 def next_sequence(r):
     return str(r.randint(10,99))
 
-# -------------------------
-# Bureaux Field Office complets
-# -------------------------
-offices = {
-    "Baie de San Francisco — Corte Madera (525)": 525,
-    "Baie de San Francisco — Daly City (599)": 599,
-    "Baie de San Francisco — El Cerrito (585)": 585,
-    "Baie de San Francisco — Fremont (643)": 643,
-    "Baie de San Francisco — Hayward (521)": 521,
-    "Baie de San Francisco — Los Gatos (641)": 641,
-    "Baie de San Francisco — Novato (647)": 647,
-    "Baie de San Francisco — Oakland (Claremont) (501)": 501,
-    "Baie de San Francisco — Oakland (Coliseum) (604)": 604,
-    "Baie de San Francisco — Pittsburg (651)": 651,
-    "Baie de San Francisco — Pleasanton (639)": 639,
-    "Baie de San Francisco — Redwood City (542)": 542,
-    "Baie de San Francisco — San Francisco (503)": 503,
-    "Baie de San Francisco — San Jose (Alma) (516)": 516,
-    "Baie de San Francisco — San Jose (Driver License Center) (607)": 607,
-    "Baie de San Francisco — San Mateo (594)": 594,
-    "Baie de San Francisco — Santa Clara (632)": 632,
-    "Baie de San Francisco — Vallejo (538)": 538,
-    "Grand Los Angeles — Arleta (628)": 628,
-    "Grand Los Angeles — Bellflower (610)": 610,
-    "Grand Los Angeles — Culver City (514)": 514,
-    "Grand Los Angeles — Glendale (540)": 540,
-    "Grand Los Angeles — Hollywood (633)": 633,
-    "Grand Los Angeles — Inglewood (544)": 544,
-    "Grand Los Angeles — Long Beach (507)": 507,
-    "Grand Los Angeles — Los Angeles (Hope St) (502)": 502,
-    "Grand Los Angeles — Montebello (531)": 531,
-    "Grand Los Angeles — Pasadena (510)": 510,
-    "Grand Los Angeles — Santa Monica (548)": 548,
-    "Grand Los Angeles — Torrance (592)": 592,
-    "Grand Los Angeles — West Covina (591)": 591,
-    "Orange County / Sud — Costa Mesa (627)": 627,
-    "Orange County / Sud — Fullerton (547)": 547,
-    "Orange County / Sud — Laguna Hills (642)": 642,
-    "Orange County / Sud — Santa Ana (529)": 529,
-    "Orange County / Sud — San Clemente (652)": 652,
-    "Orange County / Sud — Westminster (623)": 623,
-    "San Diego & Environs — Chula Vista (609)": 609,
-    "San Diego & Environs — El Cajon (549)": 549,
-    "San Diego & Environs — Oceanside (593)": 593,
-    "San Diego & Environs — San Diego (Clairemont) (618)": 618,
-    "San Diego & Environs — San Diego (Normal St) (504)": 504,
-    "San Diego & Environs — San Marcos (637)": 637,
-    "San Diego & Environs — San Ysidro (649)": 649,
-    "Sacramento / Nord — Auburn (533)": 533,
-    "Sacramento / Nord — Chico (534)": 534,
-    "Sacramento / Nord — Eureka (522)": 522,
-    "Sacramento / Nord — Redding (550)": 550,
-    "Sacramento / Nord — Roseville (635)": 635,
-    "Sacramento / Nord — Sacramento (Broadway) (500)": 500,
-    "Sacramento / Nord — Sacramento (South) (603)": 603,
-    "Sacramento / Nord — Woodland (535)": 535,
-    "Vallée Centrale — Bakersfield (511)": 511,
-    "Vallée Centrale — Fresno (505)": 505,
-    "Vallée Centrale — Lodi (595)": 595,
-    "Vallée Centrale — Modesto (536)": 536,
-    "Vallée Centrale — Stockton (517)": 517,
-    "Vallée Centrale — Visalia (519)": 519
-}
+# --- Formulaire ---
+with st.form("dl_form"):
+    ln = st.text_input("Nom de famille", "HARMS")
+    fn = st.text_input("Prénom", "ROSA")
+    sex = st.selectbox("Sexe", ["M","F"])
+    dob = st.date_input("Date de naissance", date(1990,1,1))
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        h1 = st.number_input("Pieds",0,8,5)
+        w = st.number_input("Poids (lb)",30,500,160)
+    with col2:
+        h2 = st.number_input("Pouces",0,11,10)
+        eyes = st.text_input("Yeux","BRN")
+    hair = st.text_input("Cheveux","BRN")
+    cls = st.text_input("Classe","C")
+    rstr = st.text_input("Restrictions","NONE")
+    endorse = st.text_input("Endorsements","NONE")
+    iss = st.date_input("Date d'émission", date.today())
+    
+    submit = st.form_submit_button("Générer la carte")
 
-# -------------------------
-# FORMULAIRE
-# -------------------------
-st.title("Générateur officiel de permis CA")
-
-ln = st.text_input("Nom de famille", "HARMS")
-fn = st.text_input("Prénom", "ROSA")
-sex = st.selectbox("Sexe", ["M","F"])
-dob = st.date_input("Date de naissance", datetime.date(1990,1,1))
-
-col1, col2 = st.columns(2)
-with col1:
-    h1 = st.number_input("Pieds",0,8,5)
-    w = st.number_input("Poids (lb)",30,500,160)
-with col2:
-    h2 = st.number_input("Pouces",0,11,10)
-    eyes = st.text_input("Yeux","BRN")
-hair = st.text_input("Cheveux","BRN")
-cls = st.text_input("Classe","C")
-rstr = st.text_input("Restrictions","NONE")
-endorse = st.text_input("Endorsements","NONE")
-iss = st.date_input("Date d'émission", datetime.date.today())
-
-office_choice = st.selectbox("Field Office", list(offices.keys()))
-
-generate = st.button("Générer la carte")
-
-# -------------------------
-# GÉNÉRATION DE LA CARTE
-# -------------------------
-if generate:
+# --- Génération ---
+if submit:
+    # seed deterministe
     r = random.Random(seed(ln,fn,dob))
-    dl = rletter(r, ln[0]) + rdigits(r,7)
+    dl = rletter(r, ln[:1] if ln else "A") + rdigits(r,7)
     
-    exp_year = iss.year + 5
-    exp = datetime.date(exp_year, dob.month, dob.day)
-    
-    office_code = offices[office_choice]
-    seq = next_sequence(r)
-    dd = f"{iss.strftime('%m/%d/%Y')}{office_code}{seq}FD/{iss.year%100}"
-    
-    html = f"""
-    <div class="card">
-        <div class="header">
-            <div>CALIFORNIA USA DRIVER LICENSE</div>
-            <div class="badge">{dl}</div>
-        </div>
-        <div class="body">
-            <div class="photo"></div>
-            <div class="info">
-                <div class="label">Nom</div>
-                <div class="value">{ln}</div>
-                <div class="label">Prénom</div>
-                <div class="value">{fn}</div>
-                <div class="label">Sexe</div>
-                <div class="value">{sex}</div>
-                <div class="label">DOB</div>
-                <div class="value">{dob.strftime('%m/%d/%Y')}</div>
-                <div class="label">Field Office</div>
-                <div class="value">{office_choice}</div>
-                <div class="label">DD</div>
-                <div class="value">{dd}</div>
-                <div class="label">ISS</div>
-                <div class="value">{iss.strftime('%m/%d/%Y')}</div>
-                <div class="label">EXP</div>
-                <div class="value">{exp.strftime('%m/%d/%Y')}</div>
-                <div class="label">Classe</div>
-                <div class="value">{cls}</div>
-                <div class="label">Restrictions</div>
-                <div class="value">{rstr}</div>
-                <div class="label">Endorsements</div>
-                <div class="value">{endorse}</div>
-                <div class="label">Yeux / Cheveux / Taille / Poids</div>
-                <div class="value">{eyes} / {hair} / {h1}'{h2}'' / {w} lb</div>
-            </div>
-        </div>
-    </div>
-    """
-    st.markdown(html, unsafe_allow_html=True)
+    # calcul expiration (5 ans)
+    try:
+        exp_year = iss.year + 5
+        exp = date(exp_year, dob.month, dob.day)
+    except Exception:
+        # fallback si date invalide (ex: 29 février)
+        exp = date(iss.year + 5, min(dob.month,12), min(dob.day,28))
 
+    # Chaîne AAMVA minimale pour PDF417 (exemple simple)
+    aamva_data = {
+        "DCS": ln.upper(),
+        "DCT": fn.upper(),
+        "DAQ": dl,
+        "DBB": dob.strftime("%Y%m%d"),
+        "DAJ": "CA"
+    }
+    raw_string = "".join(f"{k}{v}" for k,v in aamva_data.items())
 
+    # Tentative de génération PDF417
+    barcode_png_bytes = None
+    barcode_error = None
+
+    if pypdf417 is not None and pil_available:
+        try:
+            codes = pypdf417.encode(raw_string)
+            image = pypdf417.render_image(codes, scale=3)
+            buf = io.BytesIO()
+            image.save(buf, format="PNG")
+            barcode_png_bytes = buf.getvalue()
+        except Exception as e:
+            barcode_error = f"Erreur génération pypdf417: {e}"
+    elif pdf417gen is not None and pil_available:
+        try:
+            # pdf417gen API peut varier selon version ; on essaie l'usage courant
+            codes = pdf417gen.encode(raw_string, columns=6)
+            image = pdf417gen.render_image(codes, scale=3)
+            buf = io.BytesIO()
+            image.save(buf, format="PNG")
+            barcode_png_bytes = buf.getvalue()
+        except Exception as e:
+            barcode_error = f"Erreur génération pdf417gen: {e}"
+    else:
+        barcode_error = None  # signale absence de lib
+
+    # Affichage du résultat (même interface, aperçu compact)
+    st.markdown("---")
+    st.subheader("Aperçu officiel")
+    st.write(f"**Nom:** {ln.upper()}  •  **Prénom:** {fn.upper()}")
+    st.write(f"**Date de naissance:** {dob}  •  **Sexe:** {sex}")
+    st.write(f"**Taille:** {h1} ft {h2} in  •  **Poids:** {w} lb")
+    st.write(f"**Yeux:** {eyes.upper()}  •  **Cheveux:** {hair.upper()}")
+    st.write(f"**Classe:** {cls.upper()}  •  **Restrictions:** {rstr.upper()}  •  **Endorsements:** {endorse.upper()}")
+    st.write(f"**Numéro de permis:** {dl}")
+    st.write(f"**Émission:** {iss}  •  **Expiration:** {exp}")
+    st.write(f"**Document AAMVA (extrait):** {raw_string[:48]}")
+
+    # Affichage / téléchargement du PDF417 si disponible
+    if barcode_png_bytes:
+        st.image(barcode_png_bytes, caption="Code-barres PDF417 du permis", use_column_width=False)
+        st.download_button(
+            label="Télécharger le code-barres (PNG)",
+            data=barcode_png_bytes,
+            file_name="ca_pdf417.png",
+            mime="image/png"
+        )
+    else:
+        # Message d'erreur ou d'absence de bibliothèque
+        if barcode_error:
+            st.error(f"Impossible de générer le PDF417 automatiquement. Détail: {barcode_error}")
+        else:
+            st.warning("La bibliothèque de génération PDF417 n'est pas installée dans cet environnement.")
+        st.info("Pour activer la génération automatique du PDF417, installez l'une des bibliothèques suivantes dans l'environnement d'exécution :\n\n"
+                "`pip install pypdf417 pillow`  ou  `pip install pdf417gen pillow`")
+        # Fournir la chaîne brute AAMVA pour génération externe
+        st.markdown("**Raw AAMVA string (à utiliser pour générer le PDF417 ailleurs)**")
+        st.code(raw_string, language="text")
+        st.download_button(
+            label="Télécharger la chaîne AAMVA (TXT)",
+            data=raw_string.encode("utf-8"),
+            file_name="aamva_string.txt",
+            mime="text/plain"
+        )
+
+    st.success("Génération terminée.")
