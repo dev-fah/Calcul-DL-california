@@ -1,9 +1,12 @@
 # driver_license_final_fixed.py
-# Version robuste : validations et gestion des cas limites
-# Interface et règles inchangées
+# Version adaptée : intègre génération PDF417 (SVG) AAMVA-like et paramètres Streamlit
+# Conserve votre CSS et logique existante, ajoute gestion d'erreur si pdf417gen absent.
 
 import streamlit as st
 import datetime, random, hashlib
+import streamlit.components.v1 as components
+from calendar import monthrange
+from typing import Dict
 
 st.set_page_config(page_title="Permis CA", layout="centered")
 
@@ -68,10 +71,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Utilitaires (améliorés mais comportement identique)
+# Paramètres PDF417 (barre latérale)
+# -------------------------
+st.sidebar.header("Paramètres PDF417 (affichage)")
+columns_param = st.sidebar.slider("Colonnes", 1, 30, 6)
+security_level_param = st.sidebar.selectbox("Niveau ECC (0-8)", list(range(0,9)), index=2)
+scale_param = st.sidebar.slider("Échelle (scale)", 1, 6, 3)
+ratio_param = st.sidebar.slider("Ratio (module height)", 1, 6, 3)
+color_param = st.sidebar.color_picker("Couleur du code (SVG)", "#000000")
+st.sidebar.markdown("Si `pdf417gen` n'est pas installé sur Streamlit Cloud, copiez le dossier `pdf417gen/` à la racine du repo.")
+
+# -------------------------
+# Utilitaires (inchangés)
 # -------------------------
 def seed(*x):
-    # Utiliser une représentation stable des dates pour seed
     parts = []
     for item in x:
         if isinstance(item, (datetime.date, datetime.datetime)):
@@ -84,7 +97,6 @@ def rdigits(r,n):
     return "".join(r.choice("0123456789") for _ in range(n))
 
 def rletter(r, initial):
-    # Si initial est une lettre, l'utiliser en majuscule, sinon choisir aléatoirement
     try:
         if isinstance(initial, str) and initial and initial[0].isalpha():
             return initial[0].upper()
@@ -93,7 +105,6 @@ def rletter(r, initial):
     return r.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 def next_sequence(r):
-    # Conserver le comportement existant (2 chiffres)
     return str(r.randint(10,99))
 
 # -------------------------
@@ -208,6 +219,44 @@ def validate_inputs():
     return errors
 
 # -------------------------
+# AAMVA builder (nouveau utilitaire)
+# -------------------------
+def build_aamva_tags(fields: Dict[str,str]) -> str:
+    header = "@\n\rANSI 636014080102DL"
+    parts = [header]
+    for tag in ("DCS","DAC","DBB","DBA","DBD","DAQ","DAG","DAI","DAJ","DAK","DCF","DAU","DAY","DAZ"):
+        val = fields.get(tag)
+        if val:
+            parts.append(f"{tag}{val}")
+    return "\u001e\r".join(parts) + "\r"
+
+# -------------------------
+# Import pdf417gen (tentative) et helper SVG
+# -------------------------
+_PDF417_AVAILABLE = False
+try:
+    # tentative import normal (pip)
+    from pdf417gen import encode, render_svg
+    _PDF417_AVAILABLE = True
+except Exception:
+    try:
+        # tentative import module vendorisé dans le repo
+        import pdf417gen
+        from pdf417gen import encode, render_svg
+        _PDF417_AVAILABLE = True
+    except Exception:
+        _PDF417_AVAILABLE = False
+
+def generate_pdf417_svg(data_bytes: bytes, columns:int, security_level:int, scale:int, ratio:int, color:str) -> str:
+    if not _PDF417_AVAILABLE:
+        raise RuntimeError("Module pdf417gen non disponible.")
+    codes = encode(data_bytes, columns=columns, security_level=security_level, force_binary=False)
+    svg_tree = render_svg(codes, scale=scale, ratio=ratio, color=color)
+    import xml.etree.ElementTree as ET
+    svg_bytes = ET.tostring(svg_tree.getroot(), encoding="utf-8", method="xml")
+    return svg_bytes.decode("utf-8")
+
+# -------------------------
 # GÉNÉRATION DE LA CARTE (logique inchangée mais plus robuste)
 # -------------------------
 if generate:
@@ -253,6 +302,43 @@ if generate:
     # Format taille standard (ex: 5'10")
     height_str = f"{int(h1)}'{int(h2)}\""
 
+    # Construire champs AAMVA (exemples basiques)
+    fields = {
+        "DCS": ln.upper(),
+        "DAC": fn.upper(),
+        "DBB": dob.strftime("%m%d%Y"),
+        "DBA": exp.strftime("%m%d%Y"),
+        "DBD": iss.strftime("%m%d%Y"),
+        "DAQ": dl,
+        "DAG": "2570 24TH STREET",
+        "DAI": "ANYTOWN",
+        "DAJ": "CA",
+        "DAK": "95818",
+        "DCF": dd,  # utiliser DD comme Document Discriminator pour l'exemple
+        "DAU": f"{int(h1)}{int(h2)}",
+        "DAY": eyes_disp,
+        "DAZ": hair_disp,
+    }
+
+    aamva = build_aamva_tags(fields)
+    data_bytes = aamva.encode("utf-8")
+
+    # Générer SVG PDF417 si possible
+    svg_str = None
+    if _PDF417_AVAILABLE:
+        try:
+            svg_str = generate_pdf417_svg(data_bytes,
+                                         columns=columns_param,
+                                         security_level=security_level_param,
+                                         scale=scale_param,
+                                         ratio=ratio_param,
+                                         color=color_param)
+        except Exception as e:
+            st.error(f"Erreur lors de la génération du PDF417 : {e}")
+            svg_str = None
+    else:
+        st.warning("Le module pdf417gen n'est pas disponible. Pour activer le code-barres, ajoutez 'pdf417gen' à requirements.txt ou copiez le dossier 'pdf417gen/' dans la racine du repo.")
+
     # HTML inchangé visuellement, mêmes champs et labels
     html = f"""
     <div class="card">
@@ -291,4 +377,16 @@ if generate:
         </div>
     </div>
     """
-    st.markdown(html, unsafe_allow_html=True)
+
+    # Affichage carte + SVG (si disponible)
+    col1, col2 = st.columns([2,1])
+    with col1:
+        st.markdown(html, unsafe_allow_html=True)
+    with col2:
+        if svg_str:
+            # Encapsuler le SVG dans un fond blanc pour lisibilité
+            svg_html = f"<div style='background:#fff;padding:8px;border-radius:6px;display:flex;justify-content:center;align-items:center'>{svg_str}</div>"
+            components.html(svg_html, height=260, scrolling=True)
+        else:
+            st.info("Code-barres PDF417 non généré (module manquant ou erreur).")
+
