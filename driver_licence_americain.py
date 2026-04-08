@@ -1,13 +1,33 @@
-# driver_license_premium_compact_pdf417.py
-# Générateur Permis Californie — Version Premium Compact avec PDF417
-# Dépendances : streamlit, pypdf417, pillow
-# Installer : pip install streamlit pypdf417 pillow
+# driver_license_premium_compact_pdf417_resilient.py
+# Générateur Permis Californie — Premium Compact avec gestion d'absence de pypdf417
+# Dépendances recommandées : streamlit, pypdf417 (ou pdf417gen), pillow
+# Installer si nécessaire : pip install streamlit pypdf417 pillow
+# Alternative : pip install streamlit pdf417gen pillow
 
 import streamlit as st
 from datetime import date, datetime
 import hashlib, random, io
-import pypdf417
-from PIL import Image
+from typing import Optional
+
+# Essayer d'importer pypdf417, sinon pdf417gen, sinon None
+pypdf417 = None
+pdf417gen = None
+pil_available = True
+try:
+    import pypdf417 as _p
+    pypdf417 = _p
+except Exception:
+    try:
+        import pdf417gen as _g
+        pdf417gen = _g
+    except Exception:
+        pypdf417 = None
+        pdf417gen = None
+
+try:
+    from PIL import Image
+except Exception:
+    pil_available = False
 
 st.set_page_config(page_title="Permis Californie Premium Compact", layout="wide")
 
@@ -45,15 +65,26 @@ body { background:var(--bg); font-family:Inter,"Segoe UI",Roboto,Arial,sans-seri
 # -------------------------
 # Utilitaires
 # -------------------------
-def seed(*x): return int(hashlib.md5("|".join(map(str,x)).encode()).hexdigest()[:8],16)
-def rdigits(r,n): return "".join(r.choice("0123456789") for _ in range(n))
-def rletter(r, initial): return initial.upper() if initial.isalpha() else r.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+def seed(*x) -> int:
+    return int(hashlib.md5("|".join(map(str,x)).encode()).hexdigest()[:8],16)
+
+def rdigits(r: random.Random, n: int) -> str:
+    return "".join(r.choice("0123456789") for _ in range(n))
+
+def rletter(r: random.Random, initial: str) -> str:
+    return initial.upper() if initial and initial[0].isalpha() else r.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+def format_date(d: date) -> str:
+    return d.strftime("%Y-%m-%d")
+
+def format_height(feet: int, inches: int) -> str:
+    return f"{feet} ft {inches} in"
 
 # -------------------------
 # Formulaire
 # -------------------------
 st.markdown("<div class='container'>", unsafe_allow_html=True)
-st.title("Générateur Permis — Premium Compact")
+st.title("Générateur Permis — Premium Compact (PDF417)")
 
 with st.form("dl_form"):
     st.markdown("<div class='form-row'>", unsafe_allow_html=True)
@@ -62,8 +93,8 @@ with st.form("dl_form"):
     st.markdown("<div class='form-col small'>", unsafe_allow_html=True)
     ln = st.text_input("Nom de famille", "HARMS")
     fn = st.text_input("Prénom", "ROSA")
-    sex = st.selectbox("Sexe", ["M","F"], index=1)
-    dob = st.date_input("Date de naissance", date(1990,1,1))
+    sex = st.selectbox("Sexe", ["M","F","X"], index=1)
+    dob = st.date_input("Date de naissance", date(1995,3,15))
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Colonne centre
@@ -71,15 +102,15 @@ with st.form("dl_form"):
     h1 = st.number_input("Pieds",0,8,5)
     h2 = st.number_input("Pouces",0,11,10)
     w = st.number_input("Poids (lb)",30,500,160)
-    eyes = st.text_input("Yeux","BLU")
-    hair = st.text_input("Cheveux","BRN")
+    eyes = st.text_input("Yeux (ex: BLU)", "BLU")
+    hair = st.text_input("Cheveux (ex: BRN)", "BRN")
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Colonne droite
     st.markdown("<div class='form-col large'>", unsafe_allow_html=True)
-    cls = st.text_input("Classe","C")
-    rstr = st.text_input("Restrictions","NONE")
-    endorse = st.text_input("Endorsements","NONE")
+    cls = st.text_input("Classe", "C")
+    rstr = st.text_input("Restrictions", "NONE")
+    endorse = st.text_input("Endorsements", "NONE")
     iss = st.date_input("Date d'émission", date.today())
     submit = st.form_submit_button("⚙️ Générer l'aperçu")
     st.markdown("</div>", unsafe_allow_html=True)
@@ -92,12 +123,17 @@ st.markdown("</div>", unsafe_allow_html=True)
 # Génération + Aperçu
 # -------------------------
 if submit:
-    r = random.Random(seed(ln,fn,dob))
-    dl = rletter(r, ln[0]) + rdigits(r,7)
+    # seed + dl number
+    r = random.Random(seed(ln, fn, dob))
+    dl = rletter(r, ln[:1] if ln else "A") + rdigits(r, 7)
     exp_year = iss.year + 5
-    exp = date(exp_year, dob.month, dob.day)
+    try:
+        exp = date(exp_year, dob.month, dob.day)
+    except Exception:
+        # fallback si date invalide (ex: 29 février)
+        exp = date(exp_year, min(dob.month,12), min(dob.day,28))
 
-    # Chaîne AAMVA pour PDF417
+    # Construire chaîne AAMVA (simple, minimale)
     aamva_data = {
         "DCS": ln.upper(),
         "DCT": fn.upper(),
@@ -105,12 +141,36 @@ if submit:
         "DBB": dob.strftime("%Y%m%d"),
         "DAJ": "CA"
     }
-    raw_string = "".join(f"{k}{v}" for k,v in aamva_data.items())
-    codes = pypdf417.encode(raw_string)
-    image = pypdf417.render_image(codes, scale=3)
-    buf = io.BytesIO(); image.save(buf, format="PNG"); byte_im = buf.getvalue()
+    raw_string = "".join(f"{k}{v}" for k, v in aamva_data.items())
 
-    # Aperçu officiel
+    # Tenter de générer PDF417 (pypdf417 ou pdf417gen)
+    barcode_png_bytes: Optional[bytes] = None
+    barcode_error: Optional[str] = None
+
+    if pypdf417 is not None and pil_available:
+        try:
+            codes = pypdf417.encode(raw_string)
+            image = pypdf417.render_image(codes, scale=3)
+            buf = io.BytesIO()
+            image.save(buf, format="PNG")
+            barcode_png_bytes = buf.getvalue()
+        except Exception as e:
+            barcode_error = f"Erreur génération pypdf417: {e}"
+    elif pdf417gen is not None and pil_available:
+        try:
+            # pdf417gen.render_image retourne PIL Image via pdf417gen
+            codes = pdf417gen.encode(raw_string, columns=6)
+            image = pdf417gen.render_image(codes, scale=3)  # peut varier selon version
+            buf = io.BytesIO()
+            image.save(buf, format="PNG")
+            barcode_png_bytes = buf.getvalue()
+        except Exception as e:
+            barcode_error = f"Erreur génération pdf417gen: {e}"
+    else:
+        # aucune lib disponible
+        barcode_error = None
+
+    # Aperçu officiel (premium compact)
     st.markdown("<div class='preview'>", unsafe_allow_html=True)
     st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
                 f"<div><h3 style='margin:0'>Aperçu officiel</h3><div class='sub'>Fiche premium compacte</div></div>"
@@ -118,19 +178,64 @@ if submit:
 
     st.markdown("<div class='preview-row'>", unsafe_allow_html=True)
 
-    # Colonne gauche
+    # Colonne gauche (administratif)
     st.markdown("<div class='col-left'>", unsafe_allow_html=True)
-    st.markdown("<div class='label'>Document ID</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='sub'>{raw_string[:12]}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Document ID (extrait)</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>{raw_string[:24]}</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Colonne centre
+    # Colonne centre (identité, alignée sur Sexe)
     st.markdown("<div class='col-center'>", unsafe_allow_html=True)
     st.markdown(f"<div class='label'>Nom</div><div class='value'>{ln.upper()}</div><div class='sub'>Prénom: {fn.upper()}</div>", unsafe_allow_html=True)
     st.markdown("<div class='info-grid'>", unsafe_allow_html=True)
     st.markdown(f"<div><div class='label'>Sexe</div><div class='value'>{sex}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div><div class='label'>Né(e)</div><div class='sub'>{dob}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div><div class='label'>Taille</div><div class='value'>{h1} ft {h2} in</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div><div class='label'>Poids</div><div class='value'>{w} lb</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div><div class='label'>Né(e)</div><div class='sub'>{format_date(dob)}</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div><div class='label'>Taille</div><div class='value'>{format_height(int(h1), int(h2))}</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div><div class='label'>Poids</div><div class='value'>{int(w)} lb</div></div>", unsafe_allow_html=True)
     st.markdown(f"<div><div class='label'>Yeux</div><div class='value'>{eyes.upper()}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div><div class='label'>Cheveux</div><div class='value'>{hair.upper()}</div></div>",
+    st.markdown(f"<div><div class='label'>Cheveux</div><div class='value'>{hair.upper()}</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='grid-column:1/3;display:flex;gap:10px;margin-top:6px;'><div style='flex:1'><div class='label'>Émission</div><div class='sub'>{format_date(iss)}</div></div><div style='flex:1'><div class='label'>Expiration</div><div class='sub'>{format_date(exp)}</div></div></div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)  # close info-grid
+    st.markdown("</div>", unsafe_allow_html=True)  # close col-center
+
+    # Colonne droite (compléments)
+    st.markdown("<div class='col-right'>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Numéro de permis</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='value'>{dl}</div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Classe</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>{cls.upper()}</div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Restrictions</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>{rstr.upper()}</div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+    st.markdown("<div class='label'>Endorsements</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>{endorse.upper()}</div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub'>Généré le: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)  # close col-right
+
+    st.markdown("</div>", unsafe_allow_html=True)  # close preview-row
+    st.markdown("</div>", unsafe_allow_html=True)  # close preview
+
+    # Affichage / téléchargement du PDF417 si disponible
+    if barcode_png_bytes:
+        st.image(barcode_png_bytes, caption="Code-barres PDF417 du permis", use_column_width=False)
+        st.download_button(label="Télécharger le code-barres (PNG)", data=barcode_png_bytes, file_name="ca_pdf417.png", mime="image/png")
+    else:
+        # Pas de lib disponible ou erreur
+        if barcode_error:
+            st.error(f"Impossible de générer le PDF417 automatiquement. Détail: {barcode_error}")
+        else:
+            st.warning("Aucune bibliothèque PDF417 détectée (pypdf417 ou pdf417gen).")
+
+        st.info("Tu peux installer pypdf417 (recommandé) ou pdf417gen sur l'environnement d'exécution :\n\n"
+                "`pip install pypdf417 pillow`  ou  `pip install pdf417gen pillow`")
+
+        # Proposer le raw AAMVA string en téléchargement pour génération externe
+        st.markdown("**Raw AAMVA string (à utiliser pour générer le PDF417 ailleurs)**")
+        st.code(raw_string, language="text")
+        st.download_button(label="Télécharger la chaîne AAMVA (TXT)", data=raw_string.encode("utf-8"), file_name="aamva_string.txt", mime="text/plain")
+
+    st.success("✅ Aperçu premium compact généré.")
+st.markdown("</div>", unsafe_allow_html=True)
