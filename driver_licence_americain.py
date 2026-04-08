@@ -1,27 +1,22 @@
-# streamlit_app_fixed.py
-# Version corrigée du script original — même interface, gestion de l'absence de pypdf417
-# Dépendances recommandées : streamlit, pypdf417 (ou pdf417gen), pillow
-# Installer si nécessaire : pip install streamlit pypdf417 pillow
-# Alternative : pip install streamlit pdf417gen pillow
+# streamlit_app_fixed_minimal.py
+# Version corrigée minimale du script original.
+# Même interface et logique que ton script initial, gestion propre de l'absence de pypdf417.
+# Dépendances recommandées pour génération automatique : pypdf417, pillow
+# Installer si possible : pip install pypdf417 pillow
+# Si pypdf417 n'est pas disponible, le script fournit la chaîne AAMVA brute pour génération externe.
 
 import streamlit as st
 from datetime import date, datetime
 import hashlib, random, io
 
-# Essayer d'importer pypdf417, sinon pdf417gen, sinon None
+# Tentative d'import de pypdf417 (ne modifie pas l'interface si absent)
 pypdf417 = None
-pdf417gen = None
 pil_available = True
 try:
     import pypdf417 as _p
     pypdf417 = _p
 except Exception:
-    try:
-        import pdf417gen as _g
-        pdf417gen = _g
-    except Exception:
-        pypdf417 = None
-        pdf417gen = None
+    pypdf417 = None
 
 try:
     from PIL import Image
@@ -45,7 +40,7 @@ def rletter(r, initial):
 def next_sequence(r):
     return str(r.randint(10,99))
 
-# --- Formulaire ---
+# --- Formulaire (identique à l'original) ---
 with st.form("dl_form"):
     ln = st.text_input("Nom de famille", "HARMS")
     fn = st.text_input("Prénom", "ROSA")
@@ -67,7 +62,7 @@ with st.form("dl_form"):
     
     submit = st.form_submit_button("Générer la carte")
 
-# --- Génération ---
+# --- Génération (même logique, gestion d'erreur ajoutée) ---
 if submit:
     # seed deterministe
     r = random.Random(seed(ln,fn,dob))
@@ -81,7 +76,7 @@ if submit:
         # fallback si date invalide (ex: 29 février)
         exp = date(iss.year + 5, min(dob.month,12), min(dob.day,28))
 
-    # Chaîne AAMVA minimale pour PDF417 (exemple simple)
+    # Chaîne AAMVA minimale pour PDF417 (format simple, conforme à l'exemple)
     aamva_data = {
         "DCS": ln.upper(),
         "DCT": fn.upper(),
@@ -91,7 +86,7 @@ if submit:
     }
     raw_string = "".join(f"{k}{v}" for k,v in aamva_data.items())
 
-    # Tentative de génération PDF417
+    # Tentative de génération PDF417 (si pypdf417 et pillow sont présents)
     barcode_png_bytes = None
     barcode_error = None
 
@@ -104,20 +99,11 @@ if submit:
             barcode_png_bytes = buf.getvalue()
         except Exception as e:
             barcode_error = f"Erreur génération pypdf417: {e}"
-    elif pdf417gen is not None and pil_available:
-        try:
-            # pdf417gen API peut varier selon version ; on essaie l'usage courant
-            codes = pdf417gen.encode(raw_string, columns=6)
-            image = pdf417gen.render_image(codes, scale=3)
-            buf = io.BytesIO()
-            image.save(buf, format="PNG")
-            barcode_png_bytes = buf.getvalue()
-        except Exception as e:
-            barcode_error = f"Erreur génération pdf417gen: {e}"
     else:
-        barcode_error = None  # signale absence de lib
+        # pypdf417 absent ou PIL absent
+        barcode_error = None
 
-    # Affichage du résultat (même interface, aperçu compact)
+    # --- Affichage du résultat (interface inchangée) ---
     st.markdown("---")
     st.subheader("Aperçu officiel")
     st.write(f"**Nom:** {ln.upper()}  •  **Prénom:** {fn.upper()}")
@@ -129,7 +115,7 @@ if submit:
     st.write(f"**Émission:** {iss}  •  **Expiration:** {exp}")
     st.write(f"**Document AAMVA (extrait):** {raw_string[:48]}")
 
-    # Affichage / téléchargement du PDF417 si disponible
+    # --- Affichage / téléchargement du PDF417 si disponible, sinon message clair et raw string ---
     if barcode_png_bytes:
         st.image(barcode_png_bytes, caption="Code-barres PDF417 du permis", use_column_width=False)
         st.download_button(
@@ -139,14 +125,12 @@ if submit:
             mime="image/png"
         )
     else:
-        # Message d'erreur ou d'absence de bibliothèque
         if barcode_error:
             st.error(f"Impossible de générer le PDF417 automatiquement. Détail: {barcode_error}")
         else:
-            st.warning("La bibliothèque de génération PDF417 n'est pas installée dans cet environnement.")
-        st.info("Pour activer la génération automatique du PDF417, installez l'une des bibliothèques suivantes dans l'environnement d'exécution :\n\n"
-                "`pip install pypdf417 pillow`  ou  `pip install pdf417gen pillow`")
-        # Fournir la chaîne brute AAMVA pour génération externe
+            st.warning("La bibliothèque 'pypdf417' (ou 'pdf417gen') n'est pas installée dans cet environnement, ou 'Pillow' est manquant.")
+        st.info("Pour activer la génération automatique du PDF417, installez la bibliothèque sur l'environnement d'exécution :\n\n"
+                "`pip install pypdf417 pillow`")
         st.markdown("**Raw AAMVA string (à utiliser pour générer le PDF417 ailleurs)**")
         st.code(raw_string, language="text")
         st.download_button(
